@@ -1,7 +1,7 @@
 import { API_TARGETS } from '../config/apiConfig'
 import type { ServerDebugStatus } from '../types/calendar'
 
-export type AppPage = 'calendars' | 'mutations' | 'events'
+export type AppPage = 'calendars' | 'mutations' | 'categories' | 'events'
 
 interface TopBarProps {
   activePage: AppPage
@@ -51,6 +51,14 @@ export function TopBar({
               onClick={() => onNavigate('mutations')}
             >
               Mutacje
+            </button>
+            <button
+              id="nav-categories-tab"
+              type="button"
+              className={`topnav-link ${activePage === 'categories' ? 'active' : ''}`}
+              onClick={() => onNavigate('categories')}
+            >
+              Kategorie
             </button>
             <button
               id="nav-events-tab"

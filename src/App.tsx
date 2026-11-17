@@ -11,6 +11,7 @@ import {
 import { useAuth } from './auth/useAuth'
 import { AddCalendarForm } from './components/AddCalendarForm'
 import { CalendarList } from './components/CalendarList'
+import { CategoriesPage } from './components/CategoriesPage'
 import { LoginView } from './components/LoginView'
 import { MutationsPage } from './components/MutationsPage'
 import { RawEventsPage } from './components/RawEventsPage'
@@ -26,6 +27,7 @@ import type {
 function resolvePageFromPath(pathname: string): AppPage {
   if (pathname.startsWith('/events')) return 'events'
   if (pathname.startsWith('/mutations')) return 'mutations'
+  if (pathname.startsWith('/categories')) return 'categories'
   return 'calendars'
 }
 
@@ -51,7 +53,13 @@ export function App() {
 
   const handleNavigate = (page: AppPage) => {
     const nextPath =
-      page === 'events' ? '/events' : page === 'mutations' ? '/mutations' : '/calendars'
+      page === 'events'
+        ? '/events'
+        : page === 'mutations'
+          ? '/mutations'
+          : page === 'categories'
+            ? '/categories'
+            : '/calendars'
     if (window.location.pathname !== nextPath) {
       window.history.pushState(null, '', nextPath)
     }
@@ -204,6 +212,12 @@ export function App() {
           <RawEventsPage apiUrl={apiUrl} />
         ) : activePage === 'mutations' ? (
           <MutationsPage
+            apiUrl={apiUrl}
+            calendars={calendars}
+            signedInEmail={user.email}
+          />
+        ) : activePage === 'categories' ? (
+          <CategoriesPage
             apiUrl={apiUrl}
             calendars={calendars}
             signedInEmail={user.email}

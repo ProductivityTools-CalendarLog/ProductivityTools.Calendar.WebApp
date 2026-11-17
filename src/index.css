@@ -321,6 +321,13 @@ select {
   align-items: start;
 }
 
+.category-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.9rem;
+  align-items: start;
+}
+
 .form-grid-advanced {
   margin-top: 0.9rem;
   padding-top: 0.9rem;
