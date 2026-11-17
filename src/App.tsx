@@ -12,6 +12,7 @@ import { useAuth } from './auth/useAuth'
 import { AddCalendarForm } from './components/AddCalendarForm'
 import { CalendarList } from './components/CalendarList'
 import { LoginView } from './components/LoginView'
+import { MutationsPage } from './components/MutationsPage'
 import { RawEventsPage } from './components/RawEventsPage'
 import { TopBar, type AppPage } from './components/TopBar'
 import { getApiBaseUrl, setApiBaseUrl } from './config/apiConfig'
@@ -23,7 +24,9 @@ import type {
 } from './types/calendar'
 
 function resolvePageFromPath(pathname: string): AppPage {
-  return pathname.startsWith('/events') ? 'events' : 'calendars'
+  if (pathname.startsWith('/events')) return 'events'
+  if (pathname.startsWith('/mutations')) return 'mutations'
+  return 'calendars'
 }
 
 export function App() {
@@ -47,7 +50,8 @@ export function App() {
   }, [])
 
   const handleNavigate = (page: AppPage) => {
-    const nextPath = page === 'events' ? '/events' : '/calendars'
+    const nextPath =
+      page === 'events' ? '/events' : page === 'mutations' ? '/mutations' : '/calendars'
     if (window.location.pathname !== nextPath) {
       window.history.pushState(null, '', nextPath)
     }
@@ -198,6 +202,12 @@ export function App() {
       <main className="main-container">
         {activePage === 'events' ? (
           <RawEventsPage apiUrl={apiUrl} />
+        ) : activePage === 'mutations' ? (
+          <MutationsPage
+            apiUrl={apiUrl}
+            calendars={calendars}
+            signedInEmail={user.email}
+          />
         ) : (
           <>
             <div className="page-header">

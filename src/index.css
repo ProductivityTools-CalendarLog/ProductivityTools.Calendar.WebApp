@@ -307,6 +307,20 @@ select {
   align-items: start;
 }
 
+.mutations-form-convert {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.1fr) minmax(130px, 0.7fr) minmax(240px, 1.5fr) auto;
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.mutations-form-rename {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(190px, 1fr) minmax(120px, 0.65fr) minmax(170px, 0.9fr) auto;
+  gap: 0.9rem;
+  align-items: start;
+}
+
 .form-grid-advanced {
   margin-top: 0.9rem;
   padding-top: 0.9rem;
@@ -857,7 +871,9 @@ select {
 
 /* Responsive */
 @media (max-width: 820px) {
-  .form-grid {
+  .form-grid,
+  .mutations-form-convert,
+  .mutations-form-rename {
     grid-template-columns: 1fr;
   }
 
