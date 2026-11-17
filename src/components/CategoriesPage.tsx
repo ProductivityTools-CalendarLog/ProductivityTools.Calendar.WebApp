@@ -39,6 +39,31 @@ const MATCH_FIELD_OPTIONS: ReadonlyArray<{ value: CategoryMatchField; label: str
   { value: 'CalendarName', label: 'CalendarName — nazwa/ID kalendarza (domyślna)' },
 ]
 
+function extractDefaultMatchValueForLog(
+  log: CalendarLogItem,
+  field: CategoryMatchField,
+): string {
+  if (field === 'Color') {
+    return log.color ?? ''
+  }
+  if (field === 'CalendarName') {
+    return log.calendarName || log.calendarId || ''
+  }
+  if (field === 'TitlePrefix') {
+    const title = (log.title ?? '').trim()
+    const colonIdx = title.indexOf(':')
+    return colonIdx >= 0 ? title.slice(0, colonIdx).trim() : title
+  }
+  return (log.title ?? '').trim()
+}
+
+function defaultPriorityForField(field: CategoryMatchField): number {
+  if (field === 'TitlePrefix') return 10
+  if (field === 'Title') return 20
+  if (field === 'Color') return 40
+  return 100
+}
+
 interface CategoriesPageProps {
   apiUrl: string
   calendars: CalendarItem[]
@@ -64,21 +89,30 @@ export function CategoriesPage({ apiUrl, calendars, signedInEmail }: CategoriesP
   const [notice, setNotice] = useState<string | null>(null)
   const [accountFilter, setAccountFilter] = useState<string>('ALL')
 
-  // Create rule form
+  // Top create-rule form (primary row: Pole + Wartość + Kategoria; secondary options: Konto, Zakres, Priorytet)
   const [account, setAccount] = useState<string>(initialAccount)
   const [calendarId, setCalendarId] = useState<string>('*')
-  const [priorityInput, setPriorityInput] = useState<string>('50')
+  const [priorityInput, setPriorityInput] = useState<string>('20')
   const [matchField, setMatchField] = useState<CategoryMatchField>('Title')
   const [matchValue, setMatchValue] = useState<string>('')
   const [category, setCategory] = useState<string>('')
+  const [showScopeOptions, setShowScopeOptions] = useState<boolean>(false)
   const [submitting, setSubmitting] = useState<boolean>(false)
 
-  // Inline edit / delete
+  // Inline edit / delete on rules table
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editDraft, setEditDraft] = useState<UpsertCategoryRulePayload | null>(null)
   const [editPriorityInput, setEditPriorityInput] = useState<string>('100')
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
   const [busyRuleId, setBusyRuleId] = useState<number | null>(null)
+
+  // Quick-add rule directly from a CalendarLog row (includes Pole (Column) + Wartość + Kategoria)
+  const [quickAddLogId, setQuickAddLogId] = useState<number | null>(null)
+  const [quickField, setQuickField] = useState<CategoryMatchField>('Title')
+  const [quickValue, setQuickValue] = useState<string>('')
+  const [quickCategory, setQuickCategory] = useState<string>('')
+  const [quickPriorityInput, setQuickPriorityInput] = useState<string>('20')
+  const [quickSaving, setQuickSaving] = useState<boolean>(false)
 
   const suggestedAccounts = useMemo(() => {
     const set = new Set<string>()
@@ -89,6 +123,13 @@ export function CategoriesPage({ apiUrl, calendars, signedInEmail }: CategoriesP
     set.add('pwujczyk@gmail.com')
     return Array.from(set)
   }, [calendars, rules, signedInEmail])
+
+  const existingCategories = useMemo(() => {
+    const set = new Set<string>()
+    for (const r of rules) if (r.category.trim()) set.add(r.category.trim())
+    for (const l of logs) if (l.category?.trim()) set.add(l.category.trim())
+    return Array.from(set).sort()
+  }, [logs, rules])
 
   const calendarsForAccount = useMemo(
     () => calendars.filter((c) => !account.trim() || c.account === account.trim()),
@@ -160,6 +201,11 @@ export function CategoriesPage({ apiUrl, calendars, signedInEmail }: CategoriesP
     }
   }, [apiUrl, getIdToken, signOut])
 
+  const handleTopFieldChange = (nextField: CategoryMatchField) => {
+    setMatchField(nextField)
+    setPriorityInput(String(defaultPriorityForField(nextField)))
+  }
+
   const handleReprocess = async () => {
     setReprocessing(true)
     setError(null)
@@ -186,17 +232,31 @@ export function CategoriesPage({ apiUrl, calendars, signedInEmail }: CategoriesP
     e.preventDefault()
     setError(null)
 
+    const trimmedAccount = account.trim()
+    if (!trimmedAccount) {
+      setShowScopeOptions(true)
+      setError('Wybierz lub wpisz konto Google (Account).')
+      return
+    }
+
     const parsedPriority = Number.parseInt(priorityInput.trim(), 10)
     if (Number.isNaN(parsedPriority)) {
+      setShowScopeOptions(true)
       setError('Priorytet musi być liczbą całkowitą (niższa liczba = sprawdzana wcześniej).')
       return
     }
 
     setSubmitting(true)
     try {
+      try {
+        localStorage.setItem(LAST_ACCOUNT_KEY, trimmedAccount)
+      } catch {
+        // Ignore storage error
+      }
+
       const token = await getIdToken()
       const created = await createCategoryRule(apiUrl, token, {
-        account: account.trim(),
+        account: trimmedAccount,
         calendarId: calendarId.trim() || '*',
         priority: parsedPriority,
         matchField,
@@ -205,7 +265,6 @@ export function CategoriesPage({ apiUrl, calendars, signedInEmail }: CategoriesP
         isActive: true,
       })
 
-      // Automatically reprocess so the preview table below updates immediately
       await reprocessCalendarLogs(apiUrl, token, created.account)
       const [rulesData, logsData] = await Promise.all([
         listCategoryRules(apiUrl, token),
@@ -214,11 +273,82 @@ export function CategoriesPage({ apiUrl, calendars, signedInEmail }: CategoriesP
       setRules(rulesData)
       setLogs(logsData)
       setMatchValue('')
-      showNotice(`Dodano regułę "${created.matchField}: ${created.matchValue} → ${created.category}" i przeliczono wpisy.`)
+      showNotice(
+        `Dodano regułę "${created.matchField}: ${created.matchValue} → ${created.category}" i przeliczono wpisy.`,
+      )
     } catch (err: unknown) {
       setError((err as Error)?.message || 'Nie udało się dodać reguły.')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const openQuickAdd = (log: CalendarLogItem) => {
+    if (quickAddLogId === log.calendarLogId) {
+      setQuickAddLogId(null)
+      return
+    }
+    const hasColon = Boolean(log.title && log.title.includes(':'))
+    const initialField: CategoryMatchField = hasColon
+      ? 'TitlePrefix'
+      : log.title
+        ? 'Title'
+        : log.color
+          ? 'Color'
+          : 'CalendarName'
+
+    setQuickAddLogId(log.calendarLogId)
+    setQuickField(initialField)
+    setQuickValue(extractDefaultMatchValueForLog(log, initialField))
+    setQuickCategory(log.category ?? '')
+    setQuickPriorityInput(String(defaultPriorityForField(initialField)))
+  }
+
+  const handleQuickFieldChange = (log: CalendarLogItem, nextField: CategoryMatchField) => {
+    setQuickField(nextField)
+    setQuickValue(extractDefaultMatchValueForLog(log, nextField))
+    setQuickPriorityInput(String(defaultPriorityForField(nextField)))
+  }
+
+  const handleSaveQuickAdd = async (log: CalendarLogItem) => {
+    if (!quickValue.trim() || !quickCategory.trim()) {
+      setError('W szybkim dodawaniu uzupełnij Pole (Column), Wartość oraz Kategorię.')
+      return
+    }
+    const parsedPriority = Number.parseInt(quickPriorityInput.trim(), 10)
+    if (Number.isNaN(parsedPriority)) {
+      setError('Priorytet musi być liczbą całkowitą.')
+      return
+    }
+
+    setQuickSaving(true)
+    setError(null)
+    try {
+      const token = await getIdToken()
+      const created = await createCategoryRule(apiUrl, token, {
+        account: log.account,
+        calendarId: '*',
+        priority: parsedPriority,
+        matchField: quickField,
+        matchValue: quickValue.trim(),
+        category: quickCategory.trim(),
+        isActive: true,
+      })
+      await reprocessCalendarLogs(apiUrl, token, log.account)
+      const [rulesData, logsData] = await Promise.all([
+        listCategoryRules(apiUrl, token),
+        listCalendarLogs(apiUrl, token, 500),
+      ])
+      setRules(rulesData)
+      setLogs(logsData)
+      setQuickAddLogId(null)
+      showNotice(
+        `Dodano regułę "${created.matchField}: ${created.matchValue} → ${created.category}" i przeliczono wpisy.`,
+      )
+    } catch (err: unknown) {
+      setError((err as Error)?.message || 'Nie udało się dodać reguły.')
+    } finally {
+      setQuickSaving(false)
     }
   }
 
@@ -408,98 +538,37 @@ export function CategoriesPage({ apiUrl, calendars, signedInEmail }: CategoriesP
       {/* PANEL 1: Category Rules */}
       <section className="panel" aria-labelledby="category-rules-heading">
         <div className="panel-header">
-          <h2 id="category-rules-heading" className="panel-title">
-            Reguły kategoryzacji ({filteredRules.length})
-          </h2>
-          <span className="field-hint">
-            Niższy priorytet (np. 10) jest sprawdzany przed wyższym (np. 100 — reguła domyślna po CalendarName)
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <h2 id="category-rules-heading" className="panel-title">
+              Reguły kategoryzacji ({filteredRules.length})
+            </h2>
+            <span className="account-badge">
+              Konto: {account.trim() || '(wybierz)'} · Zakres: {calendarId} · Priorytet: {priorityInput}
+            </span>
+          </div>
+
+          <button
+            id="toggle-category-scope-options"
+            type="button"
+            className="link-btn"
+            onClick={() => setShowScopeOptions((prev) => !prev)}
+          >
+            {showScopeOptions ? 'Ukryj konto / zakres / priorytet' : 'Zmień konto, zakres lub priorytet'}
+          </button>
         </div>
 
         <form className="panel-body" onSubmit={handleAddRule}>
+          {/* Primary single-row: Pole (Column) + Wartość (Value) + Kategoria (Category) + Dodaj */}
           <div className="category-form-grid">
             <div className="field">
-              <label htmlFor="cat-account-input" className="field-label">
-                <span>Konto</span>
-              </label>
-              <input
-                id="cat-account-input"
-                type="email"
-                className="input mono"
-                value={account}
-                onChange={(e) => setAccount(e.target.value)}
-                required
-              />
-              <div className="quick-chips">
-                {suggestedAccounts.map((acc) => (
-                  <button
-                    key={acc}
-                    type="button"
-                    className={`chip ${account.trim() === acc ? 'active' : ''}`}
-                    onClick={() => setAccount(acc)}
-                  >
-                    {acc}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="field">
-              <label htmlFor="cat-scope-input" className="field-label">
-                <span>Zakres kalendarza</span>
-              </label>
-              <input
-                id="cat-scope-input"
-                type="text"
-                className="input mono"
-                value={calendarId}
-                onChange={(e) => setCalendarId(e.target.value)}
-                required
-              />
-              <div className="quick-chips">
-                <button
-                  type="button"
-                  className={`chip ${calendarId.trim() === '*' ? 'active' : ''}`}
-                  onClick={() => setCalendarId('*')}
-                >
-                  * (wszystkie)
-                </button>
-                {calendarsForAccount.map((cal) => (
-                  <button
-                    key={cal.calendarSyncStateId}
-                    type="button"
-                    className={`chip ${calendarId.trim() === cal.calendarId ? 'active' : ''}`}
-                    onClick={() => setCalendarId(cal.calendarId)}
-                  >
-                    {cal.calendarName || cal.calendarId}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="field">
-              <label htmlFor="cat-priority-input" className="field-label">
-                <span>Priorytet</span>
-              </label>
-              <input
-                id="cat-priority-input"
-                type="number"
-                className="input mono"
-                value={priorityInput}
-                onChange={(e) => setPriorityInput(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="field">
               <label htmlFor="cat-field-select" className="field-label">
-                <span>Szukaj po polu (Column)</span>
+                <span>Pole (Column)</span>
               </label>
               <select
                 id="cat-field-select"
                 className="input"
                 value={matchField}
-                onChange={(e) => setMatchField(e.target.value as CategoryMatchField)}
+                onChange={(e) => handleTopFieldChange(e.target.value as CategoryMatchField)}
               >
                 {MATCH_FIELD_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -575,6 +644,20 @@ export function CategoriesPage({ apiUrl, calendars, signedInEmail }: CategoriesP
                 onChange={(e) => setCategory(e.target.value)}
                 required
               />
+              {existingCategories.length > 0 && (
+                <div className="quick-chips">
+                  {existingCategories.map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      className={`chip ${category.trim() === cat ? 'active' : ''}`}
+                      onClick={() => setCategory(cat)}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="field" style={{ paddingTop: '1.42rem' }}>
@@ -588,11 +671,89 @@ export function CategoriesPage({ apiUrl, calendars, signedInEmail }: CategoriesP
               </button>
             </div>
           </div>
+
+          {showScopeOptions && (
+            <div className="category-scope-bar">
+              <div className="field">
+                <label htmlFor="cat-account-input" className="field-label">
+                  <span>Konto</span>
+                </label>
+                <input
+                  id="cat-account-input"
+                  type="email"
+                  className="input mono"
+                  value={account}
+                  onChange={(e) => setAccount(e.target.value)}
+                  required
+                />
+                <div className="quick-chips">
+                  {suggestedAccounts.map((acc) => (
+                    <button
+                      key={acc}
+                      type="button"
+                      className={`chip ${account.trim() === acc ? 'active' : ''}`}
+                      onClick={() => setAccount(acc)}
+                    >
+                      {acc}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="field">
+                <label htmlFor="cat-scope-input" className="field-label">
+                  <span>Zakres kalendarza (* = wszystkie)</span>
+                </label>
+                <input
+                  id="cat-scope-input"
+                  type="text"
+                  className="input mono"
+                  value={calendarId}
+                  onChange={(e) => setCalendarId(e.target.value)}
+                  required
+                />
+                <div className="quick-chips">
+                  <button
+                    type="button"
+                    className={`chip ${calendarId.trim() === '*' ? 'active' : ''}`}
+                    onClick={() => setCalendarId('*')}
+                  >
+                    * (wszystkie)
+                  </button>
+                  {calendarsForAccount.map((cal) => (
+                    <button
+                      key={cal.calendarSyncStateId}
+                      type="button"
+                      className={`chip ${calendarId.trim() === cal.calendarId ? 'active' : ''}`}
+                      onClick={() => setCalendarId(cal.calendarId)}
+                    >
+                      {cal.calendarName || cal.calendarId}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="field">
+                <label htmlFor="cat-priority-input" className="field-label">
+                  <span>Priorytet</span>
+                </label>
+                <input
+                  id="cat-priority-input"
+                  type="number"
+                  className="input mono"
+                  value={priorityInput}
+                  onChange={(e) => setPriorityInput(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+          )}
         </form>
 
         {filteredRules.length === 0 ? (
           <div className="empty-state" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-            Brak reguł kategoryzacji — dodaj pierwszą powyżej.
+            Brak reguł kategoryzacji — dodaj pierwszą powyżej lub kliknij <strong>+ Reguła</strong>{' '}
+            przy wybranym evencie poniżej.
           </div>
         ) : (
           <div className="table-wrap" style={{ borderTop: '1px solid var(--border-subtle)' }}>
@@ -821,7 +982,7 @@ export function CategoriesPage({ apiUrl, calendars, signedInEmail }: CategoriesP
         )}
       </section>
 
-      {/* PANEL 2: Processed CalendarLog entries */}
+      {/* PANEL 2: Processed CalendarLog entries + inline Quick Add Rule */}
       <section className="panel" aria-labelledby="calendar-log-preview-heading">
         <div className="panel-header">
           <div>
@@ -829,8 +990,8 @@ export function CategoriesPage({ apiUrl, calendars, signedInEmail }: CategoriesP
               Przetworzone wpisy <code>dbo.CalendarLog</code> ({filteredLogs.length})
             </h2>
             <p className="field-hint" style={{ marginTop: '0.15rem' }}>
-              Gotowe dane pod wykresy (po odfiltrowaniu Out of Office, Working Location, odrzuconych
-              zaproszeń i <code>color=1</code>).
+              Kliknij <strong>+ Reguła</strong> przy wybranym evencie, aby szybko utworzyć regułę z
+              wyborem <code>Pole (Column)</code>, <code>Wartość</code> i <code>Kategoria</code>.
             </p>
           </div>
         </div>
@@ -850,49 +1011,163 @@ export function CategoriesPage({ apiUrl, calendars, signedInEmail }: CategoriesP
                   <th>Kategoria</th>
                   <th>Tytuł / Value</th>
                   <th>Kalendarz / Kolor</th>
+                  <th style={{ textAlign: 'right' }}>Szybka reguła</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredLogs.map((log) => (
-                  <tr key={log.calendarLogId}>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <div style={{ fontWeight: 600 }}>{log.day}</div>
-                      <div className="field-hint" style={{ fontFamily: 'var(--font-mono)' }}>
-                        W:{log.weekNumber} · {log.month}
-                      </div>
-                    </td>
+                {filteredLogs.map((log) => {
+                  const isQuickOpen = quickAddLogId === log.calendarLogId
 
-                    <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
-                      {Number(log.durationHours).toFixed(2)} h
-                    </td>
+                  return (
+                    <Fragment key={log.calendarLogId}>
+                      <tr>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <div style={{ fontWeight: 600 }}>{log.day}</div>
+                          <div className="field-hint" style={{ fontFamily: 'var(--font-mono)' }}>
+                            W:{log.weekNumber} · {log.month}
+                          </div>
+                        </td>
 
-                    <td>
-                      {log.category ? (
-                        <span className="badge badge-synced">{log.category}</span>
-                      ) : (
-                        <span className="badge badge-pending">Brak kategorii</span>
+                        <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                          {Number(log.durationHours).toFixed(2)} h
+                        </td>
+
+                        <td>
+                          {log.category ? (
+                            <span className="badge badge-synced">{log.category}</span>
+                          ) : (
+                            <span className="badge badge-pending">Brak kategorii</span>
+                          )}
+                        </td>
+
+                        <td>
+                          <div className="cal-name">{log.title || '(Bez tytułu)'}</div>
+                          {log.value && (
+                            <div className="cal-id-row">
+                              <span className="field-hint">Value:</span>
+                              <code className="cal-id-code">{log.value}</code>
+                            </div>
+                          )}
+                        </td>
+
+                        <td>
+                          <div>{log.calendarName}</div>
+                          <div className="field-hint">
+                            {log.color ? `color:${log.color} · ` : ''}
+                            {log.account}
+                          </div>
+                        </td>
+
+                        <td style={{ textAlign: 'right' }}>
+                          <button
+                            id={`quick-rule-btn-${log.calendarLogId}`}
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => openQuickAdd(log)}
+                          >
+                            {isQuickOpen ? 'Zamknij' : '+ Reguła'}
+                          </button>
+                        </td>
+                      </tr>
+
+                      {isQuickOpen && (
+                        <tr>
+                          <td colSpan={6} style={{ padding: 0 }}>
+                            <div className="edit-row-box">
+                              <div className="edit-grid">
+                                <div className="field">
+                                  <label className="field-label">Pole (Column)</label>
+                                  <select
+                                    className="input"
+                                    value={quickField}
+                                    onChange={(e) =>
+                                      handleQuickFieldChange(
+                                        log,
+                                        e.target.value as CategoryMatchField,
+                                      )
+                                    }
+                                  >
+                                    {MATCH_FIELD_OPTIONS.map((opt) => (
+                                      <option key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div className="field">
+                                  <label className="field-label">Wartość (Value)</label>
+                                  <input
+                                    type="text"
+                                    className="input mono"
+                                    value={quickValue}
+                                    onChange={(e) => setQuickValue(e.target.value)}
+                                  />
+                                </div>
+
+                                <div className="field">
+                                  <label className="field-label">Kategoria (Category)</label>
+                                  <input
+                                    type="text"
+                                    className="input"
+                                    placeholder="np. Meetings, Coding, Lunch"
+                                    value={quickCategory}
+                                    onChange={(e) => setQuickCategory(e.target.value)}
+                                  />
+                                  {existingCategories.length > 0 && (
+                                    <div className="quick-chips">
+                                      {existingCategories.map((cat) => (
+                                        <button
+                                          key={cat}
+                                          type="button"
+                                          className={`chip ${
+                                            quickCategory.trim() === cat ? 'active' : ''
+                                          }`}
+                                          onClick={() => setQuickCategory(cat)}
+                                        >
+                                          {cat}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="field">
+                                  <label className="field-label">Priorytet</label>
+                                  <input
+                                    type="number"
+                                    className="input mono"
+                                    value={quickPriorityInput}
+                                    onChange={(e) => setQuickPriorityInput(e.target.value)}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="edit-actions">
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  disabled={quickSaving}
+                                  onClick={() => setQuickAddLogId(null)}
+                                >
+                                  Anuluj
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-primary btn-sm"
+                                  disabled={quickSaving}
+                                  onClick={() => void handleSaveQuickAdd(log)}
+                                >
+                                  {quickSaving ? 'Zapisywanie…' : 'Dodaj i przelicz'}
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-
-                    <td>
-                      <div className="cal-name">{log.title || '(Bez tytułu)'}</div>
-                      {log.value && (
-                        <div className="cal-id-row">
-                          <span className="field-hint">Value:</span>
-                          <code className="cal-id-code">{log.value}</code>
-                        </div>
-                      )}
-                    </td>
-
-                    <td>
-                      <div>{log.calendarName}</div>
-                      <div className="field-hint">
-                        {log.color ? `color:${log.color} · ` : ''}
-                        {log.account}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                    </Fragment>
+                  )
+                })}
               </tbody>
             </table>
           </div>
