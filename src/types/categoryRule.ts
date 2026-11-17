@@ -49,3 +49,29 @@ export interface ReprocessLogsResult {
   logsUpserted: number
   logsRemovedOrSkipped: number
 }
+
+export interface DailyCategoryBucket {
+  day: string
+  totalHours: number
+  byCategory: Record<string, number>
+}
+
+export interface DailyCategorySummary {
+  categories: string[]
+  days: DailyCategoryBucket[]
+}
+
+export interface DailySummaryQuery {
+  account?: string
+  fromDay?: string
+  toDay?: string
+  includeUncategorized?: boolean
+}
+
+export interface CalendarLogsQuery {
+  account?: string
+  fromDay?: string
+  toDay?: string
+  category?: string
+  limit?: number
+}

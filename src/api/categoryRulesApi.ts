@@ -1,6 +1,9 @@
 import type {
   CalendarCategoryRuleItem,
   CalendarLogItem,
+  CalendarLogsQuery,
+  DailyCategorySummary,
+  DailySummaryQuery,
   ReprocessLogsResult,
   UpsertCategoryRulePayload,
 } from '../types/categoryRule'
@@ -54,6 +57,45 @@ export async function listCalendarLogs(
   limit = 500,
 ): Promise<CalendarLogItem[]> {
   return requestJson<CalendarLogItem[]>(baseUrl, `/api/calendar-logs?limit=${limit}`, token)
+}
+
+export async function queryCalendarLogs(
+  baseUrl: string,
+  token: string | null,
+  query: CalendarLogsQuery,
+): Promise<CalendarLogItem[]> {
+  const params = new URLSearchParams()
+  if (query.account) params.set('account', query.account)
+  if (query.fromDay) params.set('fromDay', query.fromDay)
+  if (query.toDay) params.set('toDay', query.toDay)
+  if (query.category) params.set('category', query.category)
+  if (query.limit) params.set('limit', String(query.limit))
+  const qs = params.toString()
+  return requestJson<CalendarLogItem[]>(
+    baseUrl,
+    `/api/calendar-logs${qs ? `?${qs}` : ''}`,
+    token,
+  )
+}
+
+export async function fetchDailySummary(
+  baseUrl: string,
+  token: string | null,
+  query: DailySummaryQuery = {},
+): Promise<DailyCategorySummary> {
+  const params = new URLSearchParams()
+  if (query.account) params.set('account', query.account)
+  if (query.fromDay) params.set('fromDay', query.fromDay)
+  if (query.toDay) params.set('toDay', query.toDay)
+  if (query.includeUncategorized !== undefined) {
+    params.set('includeUncategorized', String(query.includeUncategorized))
+  }
+  const qs = params.toString()
+  return requestJson<DailyCategorySummary>(
+    baseUrl,
+    `/api/calendar-logs/daily-summary${qs ? `?${qs}` : ''}`,
+    token,
+  )
 }
 
 export async function reprocessCalendarLogs(

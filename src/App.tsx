@@ -12,6 +12,7 @@ import { useAuth } from './auth/useAuth'
 import { AddCalendarForm } from './components/AddCalendarForm'
 import { CalendarList } from './components/CalendarList'
 import { CategoriesPage } from './components/CategoriesPage'
+import { DailyChartPage } from './components/DailyChartPage'
 import { LoginView } from './components/LoginView'
 import { MutationsPage } from './components/MutationsPage'
 import { RawEventsPage } from './components/RawEventsPage'
@@ -28,7 +29,8 @@ function resolvePageFromPath(pathname: string): AppPage {
   if (pathname.startsWith('/events')) return 'events'
   if (pathname.startsWith('/mutations')) return 'mutations'
   if (pathname.startsWith('/categories')) return 'categories'
-  return 'calendars'
+  if (pathname.startsWith('/calendars')) return 'calendars'
+  return 'charts'
 }
 
 export function App() {
@@ -53,13 +55,15 @@ export function App() {
 
   const handleNavigate = (page: AppPage) => {
     const nextPath =
-      page === 'events'
-        ? '/events'
-        : page === 'mutations'
-          ? '/mutations'
-          : page === 'categories'
-            ? '/categories'
-            : '/calendars'
+      page === 'charts'
+        ? '/charts'
+        : page === 'events'
+          ? '/events'
+          : page === 'mutations'
+            ? '/mutations'
+            : page === 'categories'
+              ? '/categories'
+              : '/calendars'
     if (window.location.pathname !== nextPath) {
       window.history.pushState(null, '', nextPath)
     }
@@ -208,7 +212,14 @@ export function App() {
       />
 
       <main className="main-container">
-        {activePage === 'events' ? (
+        {activePage === 'charts' ? (
+          <DailyChartPage
+            apiUrl={apiUrl}
+            calendars={calendars}
+            signedInEmail={user.email}
+            onNavigateToCategories={() => handleNavigate('categories')}
+          />
+        ) : activePage === 'events' ? (
           <RawEventsPage apiUrl={apiUrl} />
         ) : activePage === 'mutations' ? (
           <MutationsPage
