@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError } from '../api/calendarsApi'
-import { listRawEvents } from '../api/rawEventsApi'
+import { deleteAllRawEvents, listRawEvents } from '../api/rawEventsApi'
 import { useAuth } from '../auth/useAuth'
 import type { RawCalendarEventItem } from '../types/rawEvent'
 
@@ -59,6 +59,9 @@ export function RawEventsPage({ apiUrl }: RawEventsPageProps) {
   const [events, setEvents] = useState<RawCalendarEventItem[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [confirmClearAll, setConfirmClearAll] = useState<boolean>(false)
+  const [clearingAll, setClearingAll] = useState<boolean>(false)
 
   const [accountFilter, setAccountFilter] = useState<string>('ALL')
   const [calendarFilter, setCalendarFilter] = useState<string>('ALL')
@@ -153,6 +156,27 @@ export function RawEventsPage({ apiUrl }: RawEventsPageProps) {
     })
   }, [accountFilter, calendarFilter, events, searchQuery])
 
+  const handleDeleteAll = async () => {
+    setClearingAll(true)
+    setError(null)
+    try {
+      const token = await getIdToken()
+      const res = await deleteAllRawEvents(apiUrl, token)
+      setEvents([])
+      setExpandedEventId(null)
+      setConfirmClearAll(false)
+      setNotice(`Usunięto ${res.deletedCount} eventów z tabeli RawCalendarEvent.`)
+    } catch (err: unknown) {
+      if (err instanceof ApiError && err.status === 401) {
+        await signOut()
+        return
+      }
+      setError((err as Error)?.message || 'Nie udało się wyczyścić tabeli eventów.')
+    } finally {
+      setClearingAll(false)
+    }
+  }
+
   return (
     <>
       <div className="page-header">
@@ -165,17 +189,64 @@ export function RawEventsPage({ apiUrl }: RawEventsPageProps) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+          {confirmClearAll ? (
+            <>
+              <button
+                id="confirm-clear-raw-events-button"
+                type="button"
+                className="btn btn-danger"
+                style={{ height: '38px', padding: '0 1rem', fontSize: '0.86rem' }}
+                onClick={() => void handleDeleteAll()}
+                disabled={clearingAll}
+              >
+                {clearingAll ? 'Kasowanie…' : `Potwierdź usunięcie wszystkich (${events.length})`}
+              </button>
+              <button
+                id="cancel-clear-raw-events-button"
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirmClearAll(false)}
+                disabled={clearingAll}
+              >
+                Anuluj
+              </button>
+            </>
+          ) : (
+            <button
+              id="clear-raw-events-button"
+              type="button"
+              className="btn btn-danger"
+              style={{ height: '38px', padding: '0 1rem', fontSize: '0.86rem' }}
+              onClick={() => {
+                setNotice(null)
+                setConfirmClearAll(true)
+              }}
+              disabled={loading || clearingAll || events.length === 0}
+            >
+              Wyczyść tabelę eventów
+            </button>
+          )}
+
           <button
             id="refresh-raw-events-button"
             type="button"
             className="btn btn-secondary"
             onClick={() => void reloadEvents()}
-            disabled={loading}
+            disabled={loading || clearingAll}
           >
             {loading ? 'Pobieranie…' : 'Odśwież'}
           </button>
         </div>
       </div>
+
+      {notice && (
+        <div className="alert alert-success" role="status">
+          <span>{notice}</span>
+          <button type="button" className="btn btn-ghost" onClick={() => setNotice(null)}>
+            Zamknij
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="alert alert-error" role="alert">

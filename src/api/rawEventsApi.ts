@@ -8,6 +8,10 @@ export interface ListRawEventsOptions {
   limit?: number
 }
 
+export interface DeleteRawEventsResult {
+  deletedCount: number
+}
+
 export async function listRawEvents(
   baseUrl: string,
   token: string | null,
@@ -31,4 +35,13 @@ export async function listRawEvents(
     `/api/raw-events${qs ? `?${qs}` : ''}`,
     token,
   )
+}
+
+export async function deleteAllRawEvents(
+  baseUrl: string,
+  token: string | null,
+): Promise<DeleteRawEventsResult> {
+  return requestJson<DeleteRawEventsResult>(baseUrl, '/api/raw-events', token, {
+    method: 'DELETE',
+  })
 }
