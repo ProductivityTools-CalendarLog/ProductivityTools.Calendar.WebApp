@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError } from '../api/calendarsApi'
 import { deleteAllRawEvents, listRawEvents } from '../api/rawEventsApi'
 import { useAuth } from '../auth/useAuth'
+import { SYNC_TRIGGERS } from '../config/apiConfig'
 import type { RawCalendarEventItem } from '../types/rawEvent'
 
 interface RawEventsPageProps {
@@ -189,6 +190,21 @@ export function RawEventsPage({ apiUrl }: RawEventsPageProps) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+          {SYNC_TRIGGERS.map((trigger) => (
+            <a
+              key={trigger.account}
+              id={`trigger-sync-${trigger.account}`}
+              href={trigger.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary"
+              style={{ textDecoration: 'none' }}
+              title={`Uruchamia Apps Script doGet() dla ${trigger.account} w nowej karcie — po zakończeniu kliknij Odśwież`}
+            >
+              Importuj {trigger.account} ↗
+            </a>
+          ))}
+
           {confirmClearAll ? (
             <>
               <button

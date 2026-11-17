@@ -15,7 +15,7 @@ import { LoginView } from './components/LoginView'
 import { MutationsPage } from './components/MutationsPage'
 import { RawEventsPage } from './components/RawEventsPage'
 import { TopBar, type AppPage } from './components/TopBar'
-import { getApiBaseUrl, setApiBaseUrl } from './config/apiConfig'
+import { getApiBaseUrl, setApiBaseUrl, SYNC_TRIGGERS } from './config/apiConfig'
 import type {
   CalendarItem,
   CreateCalendarPayload,
@@ -218,6 +218,23 @@ export function App() {
                   Apps Script automatycznie pobiera aktywne pozycje przez{' '}
                   <code>GET /api/sync/plan</code>.
                 </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                {SYNC_TRIGGERS.map((trigger) => (
+                  <a
+                    key={trigger.account}
+                    id={`calendars-trigger-sync-${trigger.account}`}
+                    href={trigger.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-secondary"
+                    style={{ textDecoration: 'none' }}
+                    title={`Uruchamia Apps Script doGet() dla ${trigger.account} w nowej karcie`}
+                  >
+                    Importuj {trigger.account} ↗
+                  </a>
+                ))}
               </div>
             </div>
 

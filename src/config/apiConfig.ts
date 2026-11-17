@@ -12,6 +12,18 @@ export const API_TARGETS: readonly ApiTargetOption[] = [
   { label: 'Local (:5188)', url: 'http://localhost:5188' },
 ]
 
+export interface SyncTriggerTarget {
+  account: string
+  url: string
+}
+
+export const SYNC_TRIGGERS: readonly SyncTriggerTarget[] = [
+  {
+    account: 'pwujczyk@google.com',
+    url: 'https://script.google.com/a/macros/google.com/s/AKfycbw3LKXws5aAfQma_MpyaYsO9R8PktEiLNOPvA_YwWG46azvG5cDUSugT3TWVgPyeecWZw/exec',
+  },
+]
+
 const defaultApiUrl = (
   import.meta.env.VITE_API_URL || 'https://calendarlog-api.productivitytools.top'
 ).replace(/\/+$/, '')
