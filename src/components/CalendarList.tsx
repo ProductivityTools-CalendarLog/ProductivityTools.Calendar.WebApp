@@ -27,6 +27,7 @@ export function CalendarList({
 
   // Draft state for inline editing
   const [editDraft, setEditDraft] = useState<UpdateCalendarPayload | null>(null)
+  const [lookbackInput, setLookbackInput] = useState<string>('14')
 
   const accounts = Array.from(new Set(items.map((i) => i.account))).sort()
   const filteredItems =
@@ -48,6 +49,7 @@ export function CalendarList({
     setRowError(null)
     setConfirmDeleteId(null)
     setEditingId(item.calendarSyncStateId)
+    setLookbackInput(String(item.defaultLookbackDays))
     setEditDraft({
       account: item.account,
       calendarId: item.calendarId,
@@ -67,6 +69,13 @@ export function CalendarList({
   const saveEdit = async (id: number) => {
     if (!editDraft) return
     setRowError(null)
+
+    const parsedLookback = Number.parseInt(lookbackInput.trim(), 10)
+    if (Number.isNaN(parsedLookback) || parsedLookback < 0 || parsedLookback > 3650) {
+      setRowError('Okno synchronizacji musi wynosić od 0 do 3650 dni (1 = tylko dzisiaj).')
+      return
+    }
+
     setBusyRowId(id)
     try {
       await onUpdate(id, {
@@ -74,6 +83,7 @@ export function CalendarList({
         account: editDraft.account.trim(),
         calendarId: editDraft.calendarId.trim(),
         calendarName: editDraft.calendarName?.trim() || null,
+        defaultLookbackDays: parsedLookback,
         pendingBackfillFrom: editDraft.pendingBackfillFrom?.trim() || null,
       })
       setEditingId(null)
@@ -350,20 +360,14 @@ export function CalendarList({
                               </div>
 
                               <div className="field">
-                                <label className="field-label">Okno (dni, 0 = dziś)</label>
+                                <label className="field-label">Okno (dni, 1 = tylko dziś)</label>
                                 <input
                                   type="number"
                                   min={0}
                                   max={3650}
                                   className="input mono"
-                                  value={editDraft.defaultLookbackDays}
-                                  onChange={(e) => {
-                                    const parsed = Number.parseInt(e.target.value, 10)
-                                    setEditDraft({
-                                      ...editDraft,
-                                      defaultLookbackDays: Number.isNaN(parsed) ? 0 : parsed,
-                                    })
-                                  }}
+                                  value={lookbackInput}
+                                  onChange={(e) => setLookbackInput(e.target.value)}
                                 />
                               </div>
 
