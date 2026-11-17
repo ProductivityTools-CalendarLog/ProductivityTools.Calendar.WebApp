@@ -24,9 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = useCallback(async () => {
     if (!firebaseAuth) {
-      throw new Error(
-        'Brak zmiennej środowiskowej VITE_FIREBASE_API_KEY (ustaw ją w pliku .env.local).',
-      )
+      throw new Error('Brak zmiennej VITE_FIREBASE_API_KEY.')
     }
     const provider = new GoogleAuthProvider()
     provider.setCustomParameters({ prompt: 'select_account' })
@@ -39,8 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const getIdToken = useCallback(async () => {
-    if (!firebaseAuth) return null
-    const current = firebaseAuth.currentUser
+    const current = firebaseAuth?.currentUser
     return current ? current.getIdToken() : null
   }, [])
 
