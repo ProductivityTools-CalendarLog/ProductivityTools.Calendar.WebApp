@@ -34,7 +34,7 @@ async function readErrorMessage(response: Response): Promise<string> {
   }
 }
 
-async function requestJson<T>(
+export async function requestJson<T>(
   baseUrl: string,
   path: string,
   token: string | null,

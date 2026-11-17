@@ -1,7 +1,11 @@
 import { API_TARGETS } from '../config/apiConfig'
 import type { ServerDebugStatus } from '../types/calendar'
 
+export type AppPage = 'calendars' | 'events'
+
 interface TopBarProps {
+  activePage: AppPage
+  onNavigate: (page: AppPage) => void
   userEmail: string | null
   apiUrl: string
   onChangeApiUrl: (nextUrl: string) => void
@@ -10,6 +14,8 @@ interface TopBarProps {
 }
 
 export function TopBar({
+  activePage,
+  onNavigate,
   userEmail,
   apiUrl,
   onChangeApiUrl,
@@ -19,14 +25,34 @@ export function TopBar({
   return (
     <header className="topbar">
       <div className="topbar-inner">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            CL
-          </span>
-          <div>
-            <div className="brand-title">PT Calendar</div>
-            <div className="brand-subtitle">Konfiguracja synchronizowanych kalendarzy</div>
+        <div className="topbar-left">
+          <div className="brand">
+            <span className="brand-mark" aria-hidden="true">
+              CL
+            </span>
+            <div>
+              <div className="brand-title">PT Calendar</div>
+            </div>
           </div>
+
+          <nav className="topnav" aria-label="Główna nawigacja">
+            <button
+              id="nav-calendars-tab"
+              type="button"
+              className={`topnav-link ${activePage === 'calendars' ? 'active' : ''}`}
+              onClick={() => onNavigate('calendars')}
+            >
+              Kalendarze
+            </button>
+            <button
+              id="nav-events-tab"
+              type="button"
+              className={`topnav-link ${activePage === 'events' ? 'active' : ''}`}
+              onClick={() => onNavigate('events')}
+            >
+              Pobrane eventy
+            </button>
+          </nav>
         </div>
 
         <div className="topbar-right">

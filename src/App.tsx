@@ -12,7 +12,8 @@ import { useAuth } from './auth/useAuth'
 import { AddCalendarForm } from './components/AddCalendarForm'
 import { CalendarList } from './components/CalendarList'
 import { LoginView } from './components/LoginView'
-import { TopBar } from './components/TopBar'
+import { RawEventsPage } from './components/RawEventsPage'
+import { TopBar, type AppPage } from './components/TopBar'
 import { getApiBaseUrl, setApiBaseUrl } from './config/apiConfig'
 import type {
   CalendarItem,
@@ -21,14 +22,37 @@ import type {
   UpdateCalendarPayload,
 } from './types/calendar'
 
+function resolvePageFromPath(pathname: string): AppPage {
+  return pathname.startsWith('/events') ? 'events' : 'calendars'
+}
+
 export function App() {
   const { user, loading: authLoading, signOut, getIdToken } = useAuth()
+  const [activePage, setActivePage] = useState<AppPage>(() =>
+    resolvePageFromPath(window.location.pathname),
+  )
   const [apiUrl, setApiUrlState] = useState<string>(getApiBaseUrl)
   const [serverStatus, setServerStatus] = useState<ServerDebugStatus | null>(null)
   const [calendars, setCalendars] = useState<CalendarItem[]>([])
   const [loadingCalendars, setLoadingCalendars] = useState<boolean>(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    const onPopState = () => {
+      setActivePage(resolvePageFromPath(window.location.pathname))
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  const handleNavigate = (page: AppPage) => {
+    const nextPath = page === 'events' ? '/events' : '/calendars'
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, '', nextPath)
+    }
+    setActivePage(page)
+  }
 
   const handleApiUrlChange = (nextUrl: string) => {
     setApiBaseUrl(nextUrl)
@@ -162,6 +186,8 @@ export function App() {
   return (
     <div className="app-shell">
       <TopBar
+        activePage={activePage}
+        onNavigate={handleNavigate}
         userEmail={user.email}
         apiUrl={apiUrl}
         onChangeApiUrl={handleApiUrlChange}
@@ -170,49 +196,56 @@ export function App() {
       />
 
       <main className="main-container">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Kalendarze</h1>
-            <p className="page-description">
-              Dodaj identyfikatory kalendarzy Google przypisane do poszczególnych kont — skrypt Apps
-              Script automatycznie pobiera aktywne pozycje przez <code>GET /api/sync/plan</code>.
-            </p>
-          </div>
-        </div>
+        {activePage === 'events' ? (
+          <RawEventsPage apiUrl={apiUrl} />
+        ) : (
+          <>
+            <div className="page-header">
+              <div>
+                <h1 className="page-title">Kalendarze</h1>
+                <p className="page-description">
+                  Dodaj identyfikatory kalendarzy Google przypisane do poszczególnych kont — skrypt
+                  Apps Script automatycznie pobiera aktywne pozycje przez{' '}
+                  <code>GET /api/sync/plan</code>.
+                </p>
+              </div>
+            </div>
 
-        {toast && (
-          <div className="alert alert-success" role="status">
-            <span>{toast}</span>
-          </div>
+            {toast && (
+              <div className="alert alert-success" role="status">
+                <span>{toast}</span>
+              </div>
+            )}
+
+            {loadError && (
+              <div className="alert alert-error" role="alert">
+                <span>{loadError}</span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => void loadAll()}
+                >
+                  Spróbuj ponownie
+                </button>
+              </div>
+            )}
+
+            <AddCalendarForm
+              existingAccounts={existingAccounts}
+              signedInEmail={user.email}
+              onAdd={handleAdd}
+            />
+
+            <CalendarList
+              items={calendars}
+              loading={loadingCalendars}
+              onRefresh={() => void loadAll()}
+              onToggleActive={handleToggleActive}
+              onUpdate={handleUpdate}
+              onDelete={handleDelete}
+            />
+          </>
         )}
-
-        {loadError && (
-          <div className="alert alert-error" role="alert">
-            <span>{loadError}</span>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => void loadAll()}
-            >
-              Spróbuj ponownie
-            </button>
-          </div>
-        )}
-
-        <AddCalendarForm
-          existingAccounts={existingAccounts}
-          signedInEmail={user.email}
-          onAdd={handleAdd}
-        />
-
-        <CalendarList
-          items={calendars}
-          loading={loadingCalendars}
-          onRefresh={() => void loadAll()}
-          onToggleActive={handleToggleActive}
-          onUpdate={handleUpdate}
-          onDelete={handleDelete}
-        />
       </main>
     </div>
   )

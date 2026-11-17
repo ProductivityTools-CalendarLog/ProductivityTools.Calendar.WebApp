@@ -109,6 +109,45 @@ select {
   gap: 0.65rem;
 }
 
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.topnav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background-color: var(--bg-subtle);
+  padding: 0.2rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+.topnav-link {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.83rem;
+  font-weight: 500;
+  padding: 0.35rem 0.8rem;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.topnav-link:hover {
+  color: var(--text-primary);
+}
+
+.topnav-link.active {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-xs);
+}
+
 .brand-mark {
   width: 28px;
   height: 28px;
@@ -644,6 +683,45 @@ select {
 .badge-neutral {
   background-color: var(--bg-subtle);
   color: var(--text-muted);
+}
+
+.badge-danger {
+  background-color: var(--danger-soft);
+  color: var(--danger);
+}
+
+.events-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.events-search {
+  width: 260px;
+  height: 34px;
+}
+
+.events-select {
+  width: auto;
+  min-width: 200px;
+  height: 34px;
+}
+
+.json-drawer {
+  background-color: hsl(222, 32%, 12%);
+  color: hsl(210, 30%, 92%);
+  padding: 0.9rem 1.25rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.json-pre {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  max-height: 340px;
+  overflow: auto;
 }
 
 /* Accessible Toggle Switch */
