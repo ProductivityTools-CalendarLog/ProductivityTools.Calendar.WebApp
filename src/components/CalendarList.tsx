@@ -350,19 +350,20 @@ export function CalendarList({
                               </div>
 
                               <div className="field">
-                                <label className="field-label">Okno (dni)</label>
+                                <label className="field-label">Okno (dni, 0 = dziś)</label>
                                 <input
                                   type="number"
-                                  min={1}
+                                  min={0}
                                   max={3650}
                                   className="input mono"
                                   value={editDraft.defaultLookbackDays}
-                                  onChange={(e) =>
+                                  onChange={(e) => {
+                                    const parsed = Number.parseInt(e.target.value, 10)
                                     setEditDraft({
                                       ...editDraft,
-                                      defaultLookbackDays: Number.parseInt(e.target.value, 10) || 14,
+                                      defaultLookbackDays: Number.isNaN(parsed) ? 0 : parsed,
                                     })
-                                  }
+                                  }}
                                 />
                               </div>
 

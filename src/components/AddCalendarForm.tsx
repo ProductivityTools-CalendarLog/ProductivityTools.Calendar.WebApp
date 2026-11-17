@@ -68,8 +68,8 @@ export function AddCalendarForm({
     }
 
     const parsedLookback = Number.parseInt(defaultLookbackDays, 10)
-    if (Number.isNaN(parsedLookback) || parsedLookback < 1 || parsedLookback > 3650) {
-      setFormError('Domyślne okno synchronizacji musi wynosić od 1 do 3650 dni.')
+    if (Number.isNaN(parsedLookback) || parsedLookback < 0 || parsedLookback > 3650) {
+      setFormError('Domyślne okno synchronizacji musi wynosić od 0 do 3650 dni (0 = tylko dzisiaj).')
       return
     }
 
@@ -198,12 +198,12 @@ export function AddCalendarForm({
 
             <div className="field">
               <label htmlFor="lookback-days-input" className="field-label">
-                <span>Domyślne okno (dni wstecz)</span>
+                <span>Domyślne okno (dni wstecz, 0 = dziś)</span>
               </label>
               <input
                 id="lookback-days-input"
                 type="number"
-                min={1}
+                min={0}
                 max={3650}
                 className="input mono"
                 value={defaultLookbackDays}
