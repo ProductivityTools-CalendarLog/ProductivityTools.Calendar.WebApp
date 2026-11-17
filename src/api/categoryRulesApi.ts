@@ -6,6 +6,8 @@ import type {
   DailySummaryQuery,
   ReprocessLogsResult,
   UpsertCategoryRulePayload,
+  WeeklyCategorySummary,
+  WeeklySummaryQuery,
 } from '../types/categoryRule'
 import { requestJson } from './calendarsApi'
 
@@ -68,6 +70,7 @@ export async function queryCalendarLogs(
   if (query.account) params.set('account', query.account)
   if (query.fromDay) params.set('fromDay', query.fromDay)
   if (query.toDay) params.set('toDay', query.toDay)
+  if (query.weekNumber !== undefined) params.set('weekNumber', String(query.weekNumber))
   if (query.category) params.set('category', query.category)
   if (query.limit) params.set('limit', String(query.limit))
   const qs = params.toString()
@@ -94,6 +97,28 @@ export async function fetchDailySummary(
   return requestJson<DailyCategorySummary>(
     baseUrl,
     `/api/calendar-logs/daily-summary${qs ? `?${qs}` : ''}`,
+    token,
+  )
+}
+
+export async function fetchWeeklySummary(
+  baseUrl: string,
+  token: string | null,
+  query: WeeklySummaryQuery = {},
+): Promise<WeeklyCategorySummary> {
+  const params = new URLSearchParams()
+  if (query.account) params.set('account', query.account)
+  if (query.fromDay) params.set('fromDay', query.fromDay)
+  if (query.toDay) params.set('toDay', query.toDay)
+  if (query.fromWeek !== undefined) params.set('fromWeek', String(query.fromWeek))
+  if (query.toWeek !== undefined) params.set('toWeek', String(query.toWeek))
+  if (query.includeUncategorized !== undefined) {
+    params.set('includeUncategorized', String(query.includeUncategorized))
+  }
+  const qs = params.toString()
+  return requestJson<WeeklyCategorySummary>(
+    baseUrl,
+    `/api/calendar-logs/weekly-summary${qs ? `?${qs}` : ''}`,
     token,
   )
 }

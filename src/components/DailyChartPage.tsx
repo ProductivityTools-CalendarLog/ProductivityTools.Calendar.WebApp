@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../api/calendarsApi'
 import {
   fetchDailySummary,
+  fetchWeeklySummary,
   queryCalendarLogs,
   reprocessCalendarLogs,
 } from '../api/categoryRulesApi'
@@ -12,77 +13,34 @@ import type {
   CalendarLogItem,
   DailyCategoryBucket,
   DailyCategorySummary,
+  WeeklyCategorySummary,
 } from '../types/categoryRule'
+import {
+  UNCATEGORIZED_KEY,
+  buildOrderedLegendCategories,
+  formatCategoryLabel,
+  formatDayWithWeekday,
+  formatWeekTooltipTitle,
+  getCategoryColor,
+  toIsoDateString,
+  type ChartBucketInput,
+} from '../utils/chartCategories'
+import { StackedCategoryChartCard } from './StackedCategoryChartCard'
 
-const CANONICAL_CATEGORIES_TOP_DOWN: ReadonlyArray<{
-  name: string
-  color: string
-}> = [
-  { name: 'SelfDevelopment', color: '#38761d' },
-  { name: 'Coding', color: '#6aa84f' },
-  { name: 'Journal', color: '#93c47d' },
-  { name: 'FocusedWork', color: '#b6d7a8' },
-  { name: 'IndividualProjectWork', color: '#d9ead3' },
-  { name: 'Operations', color: '#ffe599' },
-  { name: 'Emails', color: '#f9cb9c' },
-  { name: 'TopDown', color: '#ff6d01' },
-  { name: 'Hanging-out', color: '#ea9999' },
-  { name: 'One2One', color: '#c9daf8' },
-  { name: 'Meetings', color: '#a4c2f4' },
-  { name: 'OOO', color: '#4285f4' },
-]
-
-const EXTRA_CATEGORY_PALETTE: ReadonlyArray<string> = [
-  '#c27ba0',
-  '#76a5af',
-  '#b4a7d6',
-  '#f6b26b',
-  '#8e7cc3',
-  '#e06666',
-  '#6fa8dc',
-  '#ffd966',
-]
-
-const UNCATEGORIZED_KEY = 'Uncategorized'
-const UNCATEGORIZED_COLOR = '#cbd5e1'
-
-type RangePreset = '14d' | '30d' | '60d' | 'all' | 'custom'
+type RangePreset = '14d' | '30d' | '60d' | '180d' | 'all' | 'custom'
 type SortDirection = 'desc' | 'asc'
+type ChartVisibilityFilter = 'all' | 'daily' | 'weekly' | 'hours' | 'percent'
 
-function getCategoryColor(category: string): string {
-  if (category === UNCATEGORIZED_KEY) {
-    return UNCATEGORIZED_COLOR
-  }
-  const canonical = CANONICAL_CATEGORIES_TOP_DOWN.find(
-    (c) => c.name.toLowerCase() === category.toLowerCase(),
-  )
-  if (canonical) {
-    return canonical.color
-  }
-  let hash = 0
-  for (let i = 0; i < category.length; i += 1) {
-    hash = (hash * 31 + category.charCodeAt(i)) | 0
-  }
-  const idx = Math.abs(hash) % EXTRA_CATEGORY_PALETTE.length
-  return EXTRA_CATEGORY_PALETTE[idx]
-}
-
-function formatCategoryLabel(category: string): string {
-  return category === UNCATEGORIZED_KEY ? 'Brak kategorii' : category
-}
-
-function toIsoDateString(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
+type DrilldownSelection =
+  | { kind: 'day'; day: string }
+  | { kind: 'week'; weekNumber: number; label: string }
 
 function computePresetDates(preset: Exclude<RangePreset, 'all' | 'custom'>): {
   fromDay: string
   toDay: string
 } {
-  const days = preset === '14d' ? 14 : preset === '30d' ? 30 : 60
+  const days =
+    preset === '14d' ? 14 : preset === '30d' ? 30 : preset === '60d' ? 60 : 180
   const today = new Date()
   const start = new Date(today)
   start.setDate(today.getDate() - (days - 1))
@@ -129,39 +87,6 @@ function fillMissingCalendarDays(
   return result
 }
 
-function computeNiceYScale(maxVal: number): { yMax: number; ticks: number[] } {
-  const safeMax = maxVal > 0 ? maxVal : 8
-  const padded = safeMax * 1.14
-
-  let step = 2
-  if (padded <= 5) step = 1
-  else if (padded <= 14) step = 2
-  else if (padded <= 22) step = 4
-  else if (padded <= 35) step = 5
-  else if (padded <= 70) step = 10
-  else step = 20
-
-  const yMax = Math.max(step * 4, Math.ceil(padded / step) * step)
-  const ticks: number[] = []
-  for (let v = 0; v <= yMax + 0.0001; v += step) {
-    ticks.push(Math.round(v * 100) / 100)
-  }
-  return { yMax, ticks }
-}
-
-function formatDayWithWeekday(isoDay: string): string {
-  const parsed = new Date(`${isoDay}T12:00:00`)
-  if (Number.isNaN(parsed.getTime())) {
-    return isoDay
-  }
-  return parsed.toLocaleDateString('pl-PL', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
 function formatTimeRange(startIso: string, endIso: string): string {
   const s = new Date(startIso)
   const e = new Date(endIso)
@@ -170,12 +95,6 @@ function formatTimeRange(startIso: string, endIso: string): string {
   }
   const opts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }
   return `${s.toLocaleTimeString('pl-PL', opts)}–${e.toLocaleTimeString('pl-PL', opts)}`
-}
-
-interface HoveredBarState {
-  day: string
-  clientX: number
-  clientY: number
 }
 
 interface DailyChartPageProps {
@@ -192,6 +111,7 @@ export function DailyChartPage({
   onNavigateToCategories,
 }: DailyChartPageProps) {
   const { getIdToken, signOut } = useAuth()
+  const drilldownRef = useRef<HTMLElement | null>(null)
 
   const [accountFilter, setAccountFilter] = useState<string>('ALL')
   const [rangePreset, setRangePreset] = useState<RangePreset>('all')
@@ -202,21 +122,25 @@ export function DailyChartPage({
   const [includeUncategorized, setIncludeUncategorized] = useState<boolean>(true)
   const [fillEmptyDays, setFillEmptyDays] = useState<boolean>(false)
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [chartFilter, setChartFilter] = useState<ChartVisibilityFilter>('all')
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(() => new Set())
 
-  const [summary, setSummary] = useState<DailyCategorySummary>({
+  const [dailySummary, setDailySummary] = useState<DailyCategorySummary>({
     categories: [],
     days: [],
+  })
+  const [weeklySummary, setWeeklySummary] = useState<WeeklyCategorySummary>({
+    categories: [],
+    weeks: [],
   })
   const [loading, setLoading] = useState<boolean>(true)
   const [reprocessing, setReprocessing] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
-  const [hoveredBar, setHoveredBar] = useState<HoveredBarState | null>(null)
-  const [selectedDay, setSelectedDay] = useState<string | null>(null)
-  const [selectedDayLogs, setSelectedDayLogs] = useState<CalendarLogItem[]>([])
-  const [loadingDayLogs, setLoadingDayLogs] = useState<boolean>(false)
+  const [selection, setSelection] = useState<DrilldownSelection | null>(null)
+  const [drilldownLogs, setDrilldownLogs] = useState<CalendarLogItem[]>([])
+  const [loadingDrilldown, setLoadingDrilldown] = useState<boolean>(false)
 
   const effectiveDates = useMemo((): { fromDay?: string; toDay?: string } => {
     if (rangePreset === 'all') {
@@ -231,24 +155,34 @@ export function DailyChartPage({
     return computePresetDates(rangePreset)
   }, [customFrom, customTo, rangePreset])
 
-  const loadSummary = useCallback(async () => {
+  const loadSummaries = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const token = await getIdToken()
-      const data = await fetchDailySummary(apiUrl, token, {
-        account: accountFilter === 'ALL' ? undefined : accountFilter,
-        fromDay: effectiveDates.fromDay,
-        toDay: effectiveDates.toDay,
-        includeUncategorized,
-      })
-      setSummary(data)
+      const accountParam = accountFilter === 'ALL' ? undefined : accountFilter
+      const [daily, weekly] = await Promise.all([
+        fetchDailySummary(apiUrl, token, {
+          account: accountParam,
+          fromDay: effectiveDates.fromDay,
+          toDay: effectiveDates.toDay,
+          includeUncategorized,
+        }),
+        fetchWeeklySummary(apiUrl, token, {
+          account: accountParam,
+          fromDay: effectiveDates.fromDay,
+          toDay: effectiveDates.toDay,
+          includeUncategorized,
+        }),
+      ])
+      setDailySummary(daily)
+      setWeeklySummary(weekly)
     } catch (err: unknown) {
       if (err instanceof ApiError && err.status === 401) {
         await signOut()
         return
       }
-      setError((err as Error)?.message || 'Nie udało się pobrać danych do wykresu.')
+      setError((err as Error)?.message || 'Nie udało się pobrać danych do wykresów.')
     } finally {
       setLoading(false)
     }
@@ -269,14 +203,24 @@ export function DailyChartPage({
       setError(null)
       try {
         const token = await getIdToken()
-        const data = await fetchDailySummary(apiUrl, token, {
-          account: accountFilter === 'ALL' ? undefined : accountFilter,
-          fromDay: effectiveDates.fromDay,
-          toDay: effectiveDates.toDay,
-          includeUncategorized,
-        })
+        const accountParam = accountFilter === 'ALL' ? undefined : accountFilter
+        const [daily, weekly] = await Promise.all([
+          fetchDailySummary(apiUrl, token, {
+            account: accountParam,
+            fromDay: effectiveDates.fromDay,
+            toDay: effectiveDates.toDay,
+            includeUncategorized,
+          }),
+          fetchWeeklySummary(apiUrl, token, {
+            account: accountParam,
+            fromDay: effectiveDates.fromDay,
+            toDay: effectiveDates.toDay,
+            includeUncategorized,
+          }),
+        ])
         if (!cancelled) {
-          setSummary(data)
+          setDailySummary(daily)
+          setWeeklySummary(weekly)
         }
       } catch (err: unknown) {
         if (cancelled) return
@@ -284,7 +228,7 @@ export function DailyChartPage({
           await signOut()
           return
         }
-        setError((err as Error)?.message || 'Nie udało się pobrać danych do wykresu.')
+        setError((err as Error)?.message || 'Nie udało się pobrać danych do wykresów.')
       } finally {
         if (!cancelled) {
           setLoading(false)
@@ -306,30 +250,38 @@ export function DailyChartPage({
   ])
 
   useEffect(() => {
-    if (!selectedDay) return
+    if (!selection) return
     let cancelled = false
     const run = async () => {
-      setLoadingDayLogs(true)
+      setLoadingDrilldown(true)
       try {
         const token = await getIdToken()
-        const items = await queryCalendarLogs(apiUrl, token, {
-          account: accountFilter === 'ALL' ? undefined : accountFilter,
-          fromDay: selectedDay,
-          toDay: selectedDay,
-          limit: 250,
-        })
+        const accountParam = accountFilter === 'ALL' ? undefined : accountFilter
+        const items =
+          selection.kind === 'day'
+            ? await queryCalendarLogs(apiUrl, token, {
+                account: accountParam,
+                fromDay: selection.day,
+                toDay: selection.day,
+                limit: 300,
+              })
+            : await queryCalendarLogs(apiUrl, token, {
+                account: accountParam,
+                weekNumber: selection.weekNumber,
+                limit: 1000,
+              })
         if (!cancelled) {
-          setSelectedDayLogs(
+          setDrilldownLogs(
             [...items].sort((a, b) => a.startTime.localeCompare(b.startTime)),
           )
         }
       } catch {
         if (!cancelled) {
-          setSelectedDayLogs([])
+          setDrilldownLogs([])
         }
       } finally {
         if (!cancelled) {
-          setLoadingDayLogs(false)
+          setLoadingDrilldown(false)
         }
       }
     }
@@ -337,7 +289,7 @@ export function DailyChartPage({
     return () => {
       cancelled = true
     }
-  }, [accountFilter, apiUrl, getIdToken, selectedDay])
+  }, [accountFilter, apiUrl, getIdToken, selection])
 
   const handleReprocessAndRefresh = async () => {
     setReprocessing(true)
@@ -350,7 +302,7 @@ export function DailyChartPage({
         token,
         accountFilter === 'ALL' ? undefined : accountFilter,
       )
-      await loadSummary()
+      await loadSummaries()
       setNotice(
         `Przeliczono ${res.rawEventsEvaluated} eventów → zapisano ${res.logsUpserted} pozycji w CalendarLog.`,
       )
@@ -368,55 +320,21 @@ export function DailyChartPage({
     return Array.from(set).sort()
   }, [calendars, signedInEmail])
 
-  // Build ordered legend categories top-to-bottom matching screenshot:
-  // [Uncategorized (if present), ...customCategories, SelfDevelopment, Coding, ..., Meetings, OOO]
   const legendCategoriesTopDown = useMemo(() => {
-    const canonicalLowerToActual = new Map<string, string>()
-    const extraCategories: string[] = []
-    let hasUncategorized = false
+    const merged = Array.from(
+      new Set([...dailySummary.categories, ...weeklySummary.categories]),
+    )
+    return buildOrderedLegendCategories(merged, includeUncategorized)
+  }, [dailySummary.categories, includeUncategorized, weeklySummary.categories])
 
-    for (const cat of summary.categories) {
-      if (cat === UNCATEGORIZED_KEY) {
-        hasUncategorized = true
-        continue
-      }
-      const canonicalMatch = CANONICAL_CATEGORIES_TOP_DOWN.find(
-        (c) => c.name.toLowerCase() === cat.toLowerCase(),
-      )
-      if (canonicalMatch) {
-        canonicalLowerToActual.set(canonicalMatch.name.toLowerCase(), cat)
-      } else {
-        extraCategories.push(cat)
-      }
-    }
-
-    extraCategories.sort((a, b) => a.localeCompare(b))
-
-    const ordered: string[] = []
-    if (includeUncategorized && hasUncategorized) {
-      ordered.push(UNCATEGORIZED_KEY)
-    }
-    for (const extra of extraCategories) {
-      ordered.push(extra)
-    }
-    for (const canonical of CANONICAL_CATEGORIES_TOP_DOWN) {
-      const actualName =
-        canonicalLowerToActual.get(canonical.name.toLowerCase()) ?? canonical.name
-      ordered.push(actualName)
-    }
-    return ordered
-  }, [includeUncategorized, summary.categories])
-
-  // Bottom-to-top stacking order so bottom of bar = OOO, top of bar = SelfDevelopment / extra / Uncategorized
-  const stackOrderBottomUp = useMemo(
-    () => [...legendCategoriesTopDown].reverse(),
-    [legendCategoriesTopDown],
-  )
-
-  const displayedDays = useMemo(() => {
+  const dailyBuckets = useMemo((): ChartBucketInput[] => {
     const base = fillEmptyDays
-      ? fillMissingCalendarDays(summary.days, effectiveDates.fromDay, effectiveDates.toDay)
-      : summary.days
+      ? fillMissingCalendarDays(
+          dailySummary.days,
+          effectiveDates.fromDay,
+          effectiveDates.toDay,
+        )
+      : dailySummary.days
 
     const sorted = [...base].sort((a, b) =>
       sortDirection === 'desc'
@@ -424,78 +342,65 @@ export function DailyChartPage({
         : a.day.localeCompare(b.day),
     )
 
-    return sorted.map((d) => {
-      let visibleTotal = 0
-      const segments: Array<{
-        category: string
-        hours: number
-        color: string
-        yStartHours: number
-        yEndHours: number
-      }> = []
-
-      for (const cat of stackOrderBottomUp) {
-        if (hiddenCategories.has(cat)) continue
-        const hours = d.byCategory[cat] ?? 0
-        if (hours <= 0) continue
-        const nextTotal = visibleTotal + hours
-        segments.push({
-          category: cat,
-          hours,
-          color: getCategoryColor(cat),
-          yStartHours: visibleTotal,
-          yEndHours: nextTotal,
-        })
-        visibleTotal = nextTotal
-      }
-
-      return {
-        day: d.day,
-        rawByCategory: d.byCategory,
-        visibleTotalHours: Math.round(visibleTotal * 100) / 100,
-        segments,
-      }
-    })
+    return sorted.map((d) => ({
+      key: d.day,
+      xLabel: d.day,
+      tooltipTitle: formatDayWithWeekday(d.day),
+      byCategory: d.byCategory,
+    }))
   }, [
+    dailySummary.days,
     effectiveDates.fromDay,
     effectiveDates.toDay,
     fillEmptyDays,
-    hiddenCategories,
     sortDirection,
-    stackOrderBottomUp,
-    summary.days,
   ])
 
-  const categoryTotals = useMemo(() => {
-    const totals = new Map<string, number>()
-    for (const d of summary.days) {
-      for (const [cat, hrs] of Object.entries(d.byCategory)) {
-        totals.set(cat, (totals.get(cat) ?? 0) + hrs)
-      }
-    }
-    return totals
-  }, [summary.days])
+  const weeklyBuckets = useMemo((): ChartBucketInput[] => {
+    const sorted = [...weeklySummary.weeks].sort((a, b) =>
+      sortDirection === 'desc'
+        ? b.weekNumber - a.weekNumber
+        : a.weekNumber - b.weekNumber,
+    )
+
+    return sorted.map((w) => ({
+      key: String(w.weekNumber),
+      xLabel: String(w.weekNumber),
+      tooltipTitle: formatWeekTooltipTitle(w.weekNumber, w.weekStartDay, w.weekEndDay),
+      byCategory: w.byCategory,
+    }))
+  }, [sortDirection, weeklySummary.weeks])
 
   const kpiStats = useMemo(() => {
-    const count = displayedDays.length
-    const totalHours = displayedDays.reduce((acc, d) => acc + d.visibleTotalHours, 0)
-    const avgHours = count > 0 ? totalHours / count : 0
+    const daysCount = dailySummary.days.length
+    const weeksCount = weeklySummary.weeks.length
+    const catTotals = new Map<string, number>()
+    let visibleTotalHours = 0
+
+    for (const d of dailySummary.days) {
+      for (const [cat, hrs] of Object.entries(d.byCategory)) {
+        if (hiddenCategories.has(cat)) continue
+        visibleTotalHours += hrs
+        catTotals.set(cat, (catTotals.get(cat) ?? 0) + hrs)
+      }
+    }
 
     let topCategory: { name: string; hours: number } | null = null
-    for (const [cat, hrs] of categoryTotals.entries()) {
-      if (hiddenCategories.has(cat)) continue
+    for (const [cat, hrs] of catTotals.entries()) {
       if (!topCategory || hrs > topCategory.hours) {
         topCategory = { name: cat, hours: hrs }
       }
     }
 
     return {
-      daysCount: count,
-      totalHours: Math.round(totalHours * 100) / 100,
-      avgHours: Math.round(avgHours * 100) / 100,
+      daysCount,
+      weeksCount,
+      totalHours: Math.round(visibleTotalHours * 100) / 100,
+      avgWeeklyHours:
+        weeksCount > 0 ? Math.round((visibleTotalHours / weeksCount) * 100) / 100 : 0,
       topCategory,
     }
-  }, [categoryTotals, displayedDays, hiddenCategories])
+  }, [dailySummary.days, hiddenCategories, weeklySummary.weeks.length])
 
   const toggleCategoryVisibility = (category: string) => {
     setHiddenCategories((prev) => {
@@ -509,48 +414,60 @@ export function DailyChartPage({
     })
   }
 
-  // SVG Chart Geometry
-  const maxVisibleDayHours = useMemo(
-    () => displayedDays.reduce((max, d) => Math.max(max, d.visibleTotalHours), 0),
-    [displayedDays],
-  )
-  const { yMax, ticks } = useMemo(
-    () => computeNiceYScale(maxVisibleDayHours),
-    [maxVisibleDayHours],
-  )
-
-  const plotHeight = 340
-  const topMargin = 28
-  const bottomMargin = 92
-  const leftAxisWidth = 54
-  const rightPadding = 20
-  const barPitch = displayedDays.length <= 18 ? 38 : displayedDays.length <= 32 ? 30 : 25
-  const barWidth = Math.max(14, Math.round(barPitch * 0.68))
-  const svgWidth = Math.max(
-    680,
-    leftAxisWidth + displayedDays.length * barPitch + rightPadding,
-  )
-  const svgHeight = topMargin + plotHeight + bottomMargin
-  const baselineY = topMargin + plotHeight
-
-  const yForHours = (hrs: number): number => {
-    if (yMax <= 0) return baselineY
-    return baselineY - (hrs / yMax) * plotHeight
+  const handleSelectDay = (dayKey: string) => {
+    setSelection((prev) => {
+      if (prev?.kind === 'day' && prev.day === dayKey) {
+        return null
+      }
+      window.setTimeout(() => {
+        drilldownRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }, 60)
+      return { kind: 'day', day: dayKey }
+    })
   }
 
-  const hoveredDayData = useMemo(() => {
-    if (!hoveredBar) return null
-    return displayedDays.find((d) => d.day === hoveredBar.day) ?? null
-  }, [displayedDays, hoveredBar])
+  const handleSelectWeek = (weekKey: string) => {
+    const weekNumber = Number.parseInt(weekKey, 10)
+    if (Number.isNaN(weekNumber)) return
+    const found = weeklySummary.weeks.find((w) => w.weekNumber === weekNumber)
+    const label = found
+      ? formatWeekTooltipTitle(found.weekNumber, found.weekStartDay, found.weekEndDay)
+      : `Tydzień ${weekNumber}`
+
+    setSelection((prev) => {
+      if (prev?.kind === 'week' && prev.weekNumber === weekNumber) {
+        return null
+      }
+      window.setTimeout(() => {
+        drilldownRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }, 60)
+      return { kind: 'week', weekNumber, label }
+    })
+  }
+
+  const selectedDayKey = selection?.kind === 'day' ? selection.day : null
+  const selectedWeekKey =
+    selection?.kind === 'week' ? String(selection.weekNumber) : null
+
+  const showDailyHours =
+    chartFilter === 'all' || chartFilter === 'daily' || chartFilter === 'hours'
+  const showWeeklyHours =
+    chartFilter === 'all' || chartFilter === 'weekly' || chartFilter === 'hours'
+  const showDailyPercent =
+    chartFilter === 'all' || chartFilter === 'daily' || chartFilter === 'percent'
+  const showWeeklyPercent =
+    chartFilter === 'all' || chartFilter === 'weekly' || chartFilter === 'percent'
+
+  const hasAnyData = dailySummary.days.length > 0 || weeklySummary.weeks.length > 0
 
   return (
     <>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Wykres dzienny kategorii</h1>
+          <h1 className="page-title">Wykresy czasu i kategorii</h1>
           <p className="page-description">
-            Każdy słupek przedstawia osobny dzień z tabeli <code>dbo.CalendarLog</code>, a
-            kolory odpowiadają godzinom w poszczególnych kategoriach.
+            Zestawienie dzienne oraz tygodniowe (ISO <code>YYYYWW</code>) w godzinach i
+            w ujęciu 100% na podstawie tabeli <code>dbo.CalendarLog</code>.
           </p>
         </div>
 
@@ -583,9 +500,9 @@ export function DailyChartPage({
             type="button"
             className="btn btn-primary btn-sm"
             disabled={loading}
-            onClick={() => void loadSummary()}
+            onClick={() => void loadSummaries()}
           >
-            {loading ? 'Odświeżanie…' : 'Odśwież wykres'}
+            {loading ? 'Odświeżanie…' : 'Odśwież wykresy'}
           </button>
         </div>
       </div>
@@ -605,7 +522,7 @@ export function DailyChartPage({
           <button
             type="button"
             className="btn btn-secondary btn-sm"
-            onClick={() => void loadSummary()}
+            onClick={() => void loadSummaries()}
           >
             Spróbuj ponownie
           </button>
@@ -615,16 +532,18 @@ export function DailyChartPage({
       {/* KPI Summary Strip */}
       <div className="chart-kpi-grid">
         <div className="chart-kpi-card">
-          <span className="chart-kpi-label">Dni na wykresie</span>
-          <span className="chart-kpi-value">{kpiStats.daysCount}</span>
+          <span className="chart-kpi-label">Zakres danych</span>
+          <span className="chart-kpi-value">
+            {kpiStats.daysCount} dni · {kpiStats.weeksCount} tyg.
+          </span>
         </div>
         <div className="chart-kpi-card">
           <span className="chart-kpi-label">Suma godzin</span>
           <span className="chart-kpi-value">{kpiStats.totalHours.toFixed(2)} h</span>
         </div>
         <div className="chart-kpi-card">
-          <span className="chart-kpi-label">Średnio dziennie</span>
-          <span className="chart-kpi-value">{kpiStats.avgHours.toFixed(2)} h</span>
+          <span className="chart-kpi-label">Średnio tygodniowo</span>
+          <span className="chart-kpi-value">{kpiStats.avgWeeklyHours.toFixed(2)} h</span>
         </div>
         <div className="chart-kpi-card">
           <span className="chart-kpi-label">Główna kategoria</span>
@@ -647,23 +566,42 @@ export function DailyChartPage({
         </div>
       </div>
 
-      {/* Main Chart Card */}
-      <section className="panel" aria-labelledby="daily-chart-heading">
-        <div className="panel-header chart-controls-bar">
+      {/* Global Controls Toolbar */}
+      <section className="panel" aria-label="Filtry wykresów">
+        <div className="panel-header chart-controls-bar" style={{ borderBottom: 'none' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-            <h2 id="daily-chart-heading" className="panel-title">
-              Godziny wg dnia i kategorii
-            </h2>
+            <div className="filter-bar" role="group" aria-label="Widok wykresów">
+              {(
+                [
+                  { id: 'all', label: 'Wszystkie (4)' },
+                  { id: 'daily', label: 'Dzienne (2)' },
+                  { id: 'weekly', label: 'Tygodniowe (2)' },
+                  { id: 'hours', label: 'Godzinowe (2)' },
+                  { id: 'percent', label: '100% (2)' },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`filter-pill ${chartFilter === opt.id ? 'active' : ''}`}
+                  onClick={() => setChartFilter(opt.id)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
 
-            {/* Range Preset Pills */}
+            <span style={{ color: 'var(--border-strong)' }}>|</span>
+
             <div className="filter-bar" role="group" aria-label="Zakres dat">
               {(
                 [
                   { id: '14d', label: '14 dni' },
                   { id: '30d', label: '30 dni' },
                   { id: '60d', label: '60 dni' },
-                  { id: 'all', label: 'Wszystkie' },
-                  { id: 'custom', label: 'Zakres dat' },
+                  { id: '180d', label: '180 dni' },
+                  { id: 'all', label: 'Cała historia' },
+                  { id: 'custom', label: 'Od–Do' },
                 ] as const
               ).map((opt) => (
                 <button
@@ -722,12 +660,12 @@ export function DailyChartPage({
               onClick={() =>
                 setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'))
               }
-              title="Przełącz kolejność dni na osi X"
+              title="Przełącz kolejność słupków na osi X"
             >
               {sortDirection === 'desc' ? '← Najnowsze z lewej' : 'Chronologicznie →'}
             </button>
 
-            <label className="switch" title="Uwzględnij na wykresie eventy bez przypisanej kategorii">
+            <label className="switch" title="Uwzględnij eventy bez przypisanej kategorii">
               <input
                 type="checkbox"
                 checked={includeUncategorized}
@@ -739,7 +677,7 @@ export function DailyChartPage({
               <span className="switch-label">Bez kategorii</span>
             </label>
 
-            <label className="switch" title="Wypełnij dni bez eventów słupkami 0.00">
+            <label className="switch" title="Wypełnij dni bez eventów słupkami 0.00 na wykresach dziennych">
               <input
                 type="checkbox"
                 checked={fillEmptyDays}
@@ -752,15 +690,19 @@ export function DailyChartPage({
             </label>
           </div>
         </div>
+      </section>
 
-        {loading && summary.days.length === 0 ? (
-          <div className="empty-state">Ładowanie wykresu z dbo.CalendarLog…</div>
-        ) : displayedDays.length === 0 ? (
+      {loading && !hasAnyData ? (
+        <section className="panel">
+          <div className="empty-state">Ładowanie wykresów z dbo.CalendarLog…</div>
+        </section>
+      ) : !hasAnyData ? (
+        <section className="panel">
           <div className="empty-state">
-            <div className="empty-state-title">Brak danych do wyświetlenia na wykresie</div>
+            <div className="empty-state-title">Brak danych w tabeli dbo.CalendarLog</div>
             <p style={{ maxWidth: 520, margin: '0.35rem auto 1rem' }}>
-              Zaimportuj eventy przyciskiem powyżej lub sprawdź reguły kategoryzacji w zakładce
-              Kategorie.
+              Zaimportuj eventy przyciskiem powyżej lub skonfiguruj reguły kategoryzacji w
+              zakładce Kategorie.
             </p>
             {onNavigateToCategories && (
               <button
@@ -772,263 +714,118 @@ export function DailyChartPage({
               </button>
             )}
           </div>
-        ) : (
-          <div className="chart-workspace">
-            {/* Left Legend matching Google Sheets layout */}
-            <aside className="chart-legend" aria-label="Legenda kategorii">
-              <div className="chart-legend-header">
-                <span className="chart-legend-title">Kategorie</span>
-                {hiddenCategories.size > 0 && (
-                  <button
-                    type="button"
-                    className="link-btn"
-                    style={{ fontSize: '0.73rem' }}
-                    onClick={() => setHiddenCategories(new Set())}
-                  >
-                    Pokaż wszystkie
-                  </button>
-                )}
-              </div>
-
-              <ul className="chart-legend-list">
-                {legendCategoriesTopDown.map((cat) => {
-                  const isHidden = hiddenCategories.has(cat)
-                  const totalHrs = categoryTotals.get(cat) ?? 0
-                  return (
-                    <li key={cat}>
-                      <button
-                        type="button"
-                        className={`chart-legend-item ${isHidden ? 'muted' : ''}`}
-                        onClick={() => toggleCategoryVisibility(cat)}
-                        title="Kliknij, aby ukryć lub pokazać kategorię na wykresie"
-                      >
-                        <span
-                          className="chart-swatch"
-                          style={{ backgroundColor: getCategoryColor(cat) }}
-                        />
-                        <span className="chart-legend-name">{formatCategoryLabel(cat)}</span>
-                        {totalHrs > 0 && (
-                          <span className="chart-legend-hours">{totalHrs.toFixed(1)}h</span>
-                        )}
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            </aside>
-
-            {/* Right Scrollable SVG Stacked Column Chart */}
-            <div className="chart-scroll-area">
-              <svg
-                className="daily-bar-svg"
-                width={svgWidth}
-                height={svgHeight}
-                viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-                role="img"
-                aria-label="Wykres słupkowy godzin dziennych z podziałem na kategorie"
-              >
-                {/* Horizontal Gridlines & Y-Axis Labels */}
-                {ticks.map((tick) => {
-                  const y = yForHours(tick)
-                  const isZero = tick === 0
-                  return (
-                    <g key={tick}>
-                      <line
-                        x1={leftAxisWidth}
-                        y1={y}
-                        x2={svgWidth - rightPadding / 2}
-                        y2={y}
-                        stroke={isZero ? '#334155' : '#cbd5e1'}
-                        strokeWidth={isZero ? 1.25 : 1}
-                      />
-                      <text
-                        x={leftAxisWidth - 10}
-                        y={y + 4}
-                        textAnchor="end"
-                        fill="#334155"
-                        fontSize="12"
-                      >
-                        {tick.toFixed(2)}
-                      </text>
-                    </g>
-                  )
-                })}
-
-                {/* Daily Stacked Bars */}
-                {displayedDays.map((dayItem, index) => {
-                  const slotX = leftAxisWidth + index * barPitch + 6
-                  const barX = slotX + Math.round((barPitch - barWidth) / 2)
-                  const isHovered = hoveredBar?.day === dayItem.day
-                  const isSelected = selectedDay === dayItem.day
-                  const topBarY = yForHours(dayItem.visibleTotalHours)
-
-                  return (
-                    <g
-                      key={dayItem.day}
-                      className="chart-bar-group"
-                      style={{ cursor: 'pointer' }}
-                      onMouseEnter={(e) =>
-                        setHoveredBar({
-                          day: dayItem.day,
-                          clientX: e.clientX,
-                          clientY: e.clientY,
-                        })
-                      }
-                      onMouseMove={(e) =>
-                        setHoveredBar({
-                          day: dayItem.day,
-                          clientX: e.clientX,
-                          clientY: e.clientY,
-                        })
-                      }
-                      onMouseLeave={() => setHoveredBar(null)}
-                      onClick={() =>
-                        setSelectedDay((prev) => (prev === dayItem.day ? null : dayItem.day))
-                      }
-                    >
-                      {/* Invisible full-height hit rect + subtle hover/selected highlight */}
-                      <rect
-                        x={slotX}
-                        y={topMargin - 12}
-                        width={barPitch}
-                        height={plotHeight + bottomMargin}
-                        rx={4}
-                        fill={
-                          isSelected
-                            ? 'hsla(219, 79%, 46%, 0.10)'
-                            : isHovered
-                              ? 'hsla(215, 25%, 27%, 0.05)'
-                              : 'transparent'
-                        }
-                      />
-
-                      {/* Stacked Category Segments (bottom-up) */}
-                      {dayItem.segments.map((seg) => {
-                        const yTop = yForHours(seg.yEndHours)
-                        const yBottom = yForHours(seg.yStartHours)
-                        const rectHeight = Math.max(0.5, yBottom - yTop)
-                        return (
-                          <rect
-                            key={seg.category}
-                            x={barX}
-                            y={yTop}
-                            width={barWidth}
-                            height={rectHeight}
-                            fill={seg.color}
-                          />
-                        )
-                      })}
-
-                      {/* Total Hours Label Above Bar */}
-                      {dayItem.visibleTotalHours > 0 && (
-                        <text
-                          x={barX + barWidth / 2}
-                          y={Math.max(14, topBarY - 6)}
-                          textAnchor="middle"
-                          fill="#64748b"
-                          fontSize="11"
-                          fontWeight="500"
-                        >
-                          {dayItem.visibleTotalHours.toFixed(2)}
-                        </text>
-                      )}
-
-                      {/* Rotated -90deg X-Axis Date Label */}
-                      <text
-                        transform={`translate(${barX + barWidth / 2 + 4}, ${baselineY + 10}) rotate(-90)`}
-                        textAnchor="end"
-                        fill={isSelected ? '#1d4ed8' : '#0f172a'}
-                        fontSize="11.5"
-                        fontWeight={isSelected ? '700' : '500'}
-                        style={{ fontVariantNumeric: 'tabular-nums' }}
-                      >
-                        {dayItem.day}
-                      </text>
-                    </g>
-                  )
-                })}
-              </svg>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* Floating Hover Tooltip */}
-      {hoveredBar && hoveredDayData && (
-        <div
-          className="chart-tooltip"
-          style={{
-            left: Math.min(window.innerWidth - 290, hoveredBar.clientX + 16),
-            top: Math.max(16, hoveredBar.clientY - 24),
-          }}
-        >
-          <div className="chart-tooltip-header">
-            <div className="chart-tooltip-date">{formatDayWithWeekday(hoveredDayData.day)}</div>
-            <div className="chart-tooltip-total">
-              Suma: <strong>{hoveredDayData.visibleTotalHours.toFixed(2)} h</strong>
-            </div>
-          </div>
-          {hoveredDayData.segments.length === 0 ? (
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              Brak zarejestrowanych godzin
-            </div>
-          ) : (
-            <ul className="chart-tooltip-list">
-              {[...hoveredDayData.segments].reverse().map((seg) => {
-                const pct =
-                  hoveredDayData.visibleTotalHours > 0
-                    ? Math.round((seg.hours / hoveredDayData.visibleTotalHours) * 100)
-                    : 0
-                return (
-                  <li key={seg.category} className="chart-tooltip-row">
-                    <span className="chart-tooltip-cat">
-                      <span
-                        className="chart-swatch"
-                        style={{ backgroundColor: seg.color }}
-                      />
-                      <span>{formatCategoryLabel(seg.category)}</span>
-                    </span>
-                    <span className="chart-tooltip-val">
-                      <strong>{seg.hours.toFixed(2)} h</strong>{' '}
-                      <span style={{ color: 'var(--text-muted)' }}>({pct}%)</span>
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
+        </section>
+      ) : (
+        <>
+          {/* 1. Daily Hours Stacked Bar Chart */}
+          {showDailyHours && (
+            <StackedCategoryChartCard
+              chartId="daily-hours-chart"
+              title="1. Wykres dzienny — Godziny wg kategorii"
+              subtitle="Każdy słupek to osobny dzień (YYYY-MM-DD); wysokość słupka przedstawia sumę przepracowanych godzin."
+              mode="hours"
+              buckets={dailyBuckets}
+              legendCategoriesTopDown={legendCategoriesTopDown}
+              hiddenCategories={hiddenCategories}
+              onToggleCategory={toggleCategoryVisibility}
+              onResetHiddenCategories={() => setHiddenCategories(new Set())}
+              selectedKey={selectedDayKey}
+              onSelectBucket={handleSelectDay}
+              clickHintLabel="Kliknij słupek, aby zobaczyć listę eventów z tego dnia"
+            />
           )}
-          <div className="chart-tooltip-hint">Kliknij słupek, aby zobaczyć listę eventów z tego dnia</div>
-        </div>
+
+          {/* 2. Weekly Hours Stacked Bar Chart */}
+          {showWeeklyHours && (
+            <StackedCategoryChartCard
+              chartId="weekly-hours-chart"
+              title="2. Wykres tygodniowy — Godziny wg kategorii"
+              subtitle="Każdy słupek to osobny tydzień ISO (RRRRTT, np. 202647); wysokość słupka przedstawia łączną liczbę godzin w tygodniu."
+              mode="hours"
+              buckets={weeklyBuckets}
+              legendCategoriesTopDown={legendCategoriesTopDown}
+              hiddenCategories={hiddenCategories}
+              onToggleCategory={toggleCategoryVisibility}
+              onResetHiddenCategories={() => setHiddenCategories(new Set())}
+              selectedKey={selectedWeekKey}
+              onSelectBucket={handleSelectWeek}
+              clickHintLabel="Kliknij słupek, aby zobaczyć listę wszystkich eventów z tego tygodnia"
+            />
+          )}
+
+          {/* 3. Daily 100% Stacked Bar Chart */}
+          {showDailyPercent && (
+            <StackedCategoryChartCard
+              chartId="daily-percent-chart"
+              title="3. Wykres dzienny — Udział procentowy kategorii (100%)"
+              subtitle="Każdy dzień znormalizowany do 100% czasu; nad słupkiem widoczna łączna suma godzin z danego dnia."
+              mode="percent"
+              buckets={dailyBuckets}
+              legendCategoriesTopDown={legendCategoriesTopDown}
+              hiddenCategories={hiddenCategories}
+              onToggleCategory={toggleCategoryVisibility}
+              onResetHiddenCategories={() => setHiddenCategories(new Set())}
+              selectedKey={selectedDayKey}
+              onSelectBucket={handleSelectDay}
+              clickHintLabel="Kliknij słupek, aby zobaczyć listę eventów z tego dnia"
+            />
+          )}
+
+          {/* 4. Weekly 100% Stacked Bar Chart */}
+          {showWeeklyPercent && (
+            <StackedCategoryChartCard
+              chartId="weekly-percent-chart"
+              title="4. Wykres tygodniowy — Udział procentowy kategorii (100%)"
+              subtitle="Każdy tydzień ISO (RRRRTT) znormalizowany do 100% czasu; nad słupkiem widoczna łączna suma godzin w tygodniu."
+              mode="percent"
+              buckets={weeklyBuckets}
+              legendCategoriesTopDown={legendCategoriesTopDown}
+              hiddenCategories={hiddenCategories}
+              onToggleCategory={toggleCategoryVisibility}
+              onResetHiddenCategories={() => setHiddenCategories(new Set())}
+              selectedKey={selectedWeekKey}
+              onSelectBucket={handleSelectWeek}
+              clickHintLabel="Kliknij słupek, aby zobaczyć listę wszystkich eventów z tego tygodnia"
+            />
+          )}
+        </>
       )}
 
-      {/* Selected Day Drill-Down Panel */}
-      {selectedDay && (
-        <section className="panel" aria-labelledby="selected-day-heading">
+      {/* Drill-Down Panel for Selected Day or Selected Week */}
+      {selection && (
+        <section
+          ref={drilldownRef}
+          className="panel"
+          aria-labelledby="drilldown-heading"
+        >
           <div className="panel-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-              <h2 id="selected-day-heading" className="panel-title">
-                Wydarzenia dnia: {formatDayWithWeekday(selectedDay)}
+              <h2 id="drilldown-heading" className="panel-title">
+                {selection.kind === 'day'
+                  ? `Wydarzenia dnia: ${formatDayWithWeekday(selection.day)}`
+                  : `Wydarzenia tygodnia: ${selection.label}`}
               </h2>
-              <span className="badge badge-neutral">{selectedDayLogs.length} pozycji</span>
+              <span className="badge badge-neutral">{drilldownLogs.length} pozycji</span>
             </div>
             <button
               type="button"
               className="btn btn-ghost"
-              onClick={() => setSelectedDay(null)}
+              onClick={() => setSelection(null)}
             >
               Zamknij szczegóły ✕
             </button>
           </div>
 
-          {loadingDayLogs ? (
-            <div className="empty-state">Ładowanie wydarzeń z dnia {selectedDay}…</div>
-          ) : selectedDayLogs.length === 0 ? (
-            <div className="empty-state">Brak wydarzeń w dbo.CalendarLog dla tego dnia.</div>
+          {loadingDrilldown ? (
+            <div className="empty-state">Ładowanie szczegółowych wydarzeń…</div>
+          ) : drilldownLogs.length === 0 ? (
+            <div className="empty-state">Brak wydarzeń w dbo.CalendarLog dla wybranego okresu.</div>
           ) : (
             <div className="table-wrap">
               <table className="cal-table">
                 <thead>
                   <tr>
+                    <th>Dzień</th>
                     <th>Godziny</th>
                     <th>Czas (h)</th>
                     <th>Kategoria</th>
@@ -1037,11 +834,26 @@ export function DailyChartPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedDayLogs.map((log) => {
+                  {drilldownLogs.map((log) => {
                     const catKey = log.category || UNCATEGORIZED_KEY
                     return (
                       <tr key={log.calendarLogId}>
-                        <td style={{ whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
+                        <td
+                          style={{
+                            whiteSpace: 'nowrap',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '0.8rem',
+                          }}
+                        >
+                          {log.day}
+                        </td>
+                        <td
+                          style={{
+                            whiteSpace: 'nowrap',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '0.8rem',
+                          }}
+                        >
                           {formatTimeRange(log.startTime, log.endTime)}
                         </td>
                         <td style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>

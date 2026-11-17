@@ -61,6 +61,19 @@ export interface DailyCategorySummary {
   days: DailyCategoryBucket[]
 }
 
+export interface WeeklyCategoryBucket {
+  weekNumber: number
+  weekStartDay: string
+  weekEndDay: string
+  totalHours: number
+  byCategory: Record<string, number>
+}
+
+export interface WeeklyCategorySummary {
+  categories: string[]
+  weeks: WeeklyCategoryBucket[]
+}
+
 export interface DailySummaryQuery {
   account?: string
   fromDay?: string
@@ -68,10 +81,20 @@ export interface DailySummaryQuery {
   includeUncategorized?: boolean
 }
 
+export interface WeeklySummaryQuery {
+  account?: string
+  fromDay?: string
+  toDay?: string
+  fromWeek?: number
+  toWeek?: number
+  includeUncategorized?: boolean
+}
+
 export interface CalendarLogsQuery {
   account?: string
   fromDay?: string
   toDay?: string
+  weekNumber?: number
   category?: string
   limit?: number
 }
