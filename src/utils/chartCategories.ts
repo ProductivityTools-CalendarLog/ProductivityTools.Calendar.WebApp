@@ -1,3 +1,5 @@
+import type { CalendarCategoryConfigItem } from '../types/categoryRule'
+
 export const CANONICAL_CATEGORIES_TOP_DOWN: ReadonlyArray<{
   name: string
   color: string
@@ -37,16 +39,30 @@ export interface ChartBucketInput {
   byCategory: Record<string, number>
 }
 
-export function getCategoryColor(category: string): string {
+export function getCategoryColor(
+  category: string,
+  categoryConfigs?: readonly CalendarCategoryConfigItem[],
+): string {
   if (category === UNCATEGORIZED_KEY) {
     return UNCATEGORIZED_COLOR
   }
+
+  if (categoryConfigs && categoryConfigs.length > 0) {
+    const found = categoryConfigs.find(
+      (c) => c.category.toLowerCase() === category.toLowerCase(),
+    )
+    if (found && found.color) {
+      return found.color
+    }
+  }
+
   const canonical = CANONICAL_CATEGORIES_TOP_DOWN.find(
     (c) => c.name.toLowerCase() === category.toLowerCase(),
   )
   if (canonical) {
     return canonical.color
   }
+
   let hash = 0
   for (let i = 0; i < category.length; i += 1) {
     hash = (hash * 31 + category.charCodeAt(i)) | 0
@@ -59,11 +75,31 @@ export function formatCategoryLabel(category: string): string {
   return category === UNCATEGORIZED_KEY ? 'Brak kategorii' : category
 }
 
+/**
+ * Builds the top-to-bottom legend category list.
+ * In the database, SortOrder is ascending from bottom of bar to top of bar
+ * (10 = OOO at bottom .. 120 = SelfDevelopment at top, matching PT.Calendar Series[0..11]).
+ * Reversing that ascending SortOrder produces the top-to-bottom legend order
+ * so legend top-to-bottom matches bar top-to-bottom 1:1.
+ */
 export function buildOrderedLegendCategories(
   rawCategories: readonly string[],
   includeUncategorized: boolean,
+  categoryConfigs?: readonly CalendarCategoryConfigItem[],
 ): string[] {
-  const canonicalLowerToActual = new Map<string, string>()
+  const activeConfigsBottomUp =
+    categoryConfigs && categoryConfigs.length > 0
+      ? [...categoryConfigs]
+          .filter((c) => c.isActive)
+          .sort(
+            (a, b) =>
+              a.sortOrder - b.sortOrder || a.calendarCategoryId - b.calendarCategoryId,
+          )
+          .map((c) => c.category)
+      : [...CANONICAL_CATEGORIES_TOP_DOWN].reverse().map((c) => c.name)
+
+  const configuredTopDown = [...activeConfigsBottomUp].reverse()
+  const configuredLowerToActual = new Map<string, string>()
   const extraCategories: string[] = []
   let hasUncategorized = false
 
@@ -72,11 +108,9 @@ export function buildOrderedLegendCategories(
       hasUncategorized = true
       continue
     }
-    const canonicalMatch = CANONICAL_CATEGORIES_TOP_DOWN.find(
-      (c) => c.name.toLowerCase() === cat.toLowerCase(),
-    )
-    if (canonicalMatch) {
-      canonicalLowerToActual.set(canonicalMatch.name.toLowerCase(), cat)
+    const match = configuredTopDown.find((c) => c.toLowerCase() === cat.toLowerCase())
+    if (match) {
+      configuredLowerToActual.set(match.toLowerCase(), cat)
     } else if (!extraCategories.includes(cat)) {
       extraCategories.push(cat)
     }
@@ -91,9 +125,8 @@ export function buildOrderedLegendCategories(
   for (const extra of extraCategories) {
     ordered.push(extra)
   }
-  for (const canonical of CANONICAL_CATEGORIES_TOP_DOWN) {
-    const actualName =
-      canonicalLowerToActual.get(canonical.name.toLowerCase()) ?? canonical.name
+  for (const cfgName of configuredTopDown) {
+    const actualName = configuredLowerToActual.get(cfgName.toLowerCase()) ?? cfgName
     ordered.push(actualName)
   }
   return ordered

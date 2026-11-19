@@ -320,12 +320,22 @@ export function DailyChartPage({
     return Array.from(set).sort()
   }, [calendars, signedInEmail])
 
+  const categoryConfigs = useMemo(
+    () => dailySummary.categoryConfigs ?? weeklySummary.categoryConfigs ?? [],
+    [dailySummary.categoryConfigs, weeklySummary.categoryConfigs],
+  )
+
   const legendCategoriesTopDown = useMemo(() => {
     const merged = Array.from(
       new Set([...dailySummary.categories, ...weeklySummary.categories]),
     )
-    return buildOrderedLegendCategories(merged, includeUncategorized)
-  }, [dailySummary.categories, includeUncategorized, weeklySummary.categories])
+    return buildOrderedLegendCategories(merged, includeUncategorized, categoryConfigs)
+  }, [
+    categoryConfigs,
+    dailySummary.categories,
+    includeUncategorized,
+    weeklySummary.categories,
+  ])
 
   const dailyBuckets = useMemo((): ChartBucketInput[] => {
     const base = fillEmptyDays
@@ -486,6 +496,16 @@ export function DailyChartPage({
               Importuj {trigger.account} ↗
             </a>
           ))}
+          {onNavigateToCategories && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onNavigateToCategories}
+              title="Edytuj kolejność sortowania kategorii i kolory na wykresach"
+            >
+              Kolejność sortowania
+            </button>
+          )}
           <button
             id="charts-reprocess-btn"
             type="button"
@@ -552,7 +572,12 @@ export function DailyChartPage({
               <>
                 <span
                   className="chart-swatch"
-                  style={{ backgroundColor: getCategoryColor(kpiStats.topCategory.name) }}
+                  style={{
+                    backgroundColor: getCategoryColor(
+                      kpiStats.topCategory.name,
+                      categoryConfigs,
+                    ),
+                  }}
                 />
                 <span>
                   {formatCategoryLabel(kpiStats.topCategory.name)} ·{' '}
@@ -726,6 +751,7 @@ export function DailyChartPage({
               mode="hours"
               buckets={dailyBuckets}
               legendCategoriesTopDown={legendCategoriesTopDown}
+              categoryConfigs={categoryConfigs}
               hiddenCategories={hiddenCategories}
               onToggleCategory={toggleCategoryVisibility}
               onResetHiddenCategories={() => setHiddenCategories(new Set())}
@@ -744,6 +770,7 @@ export function DailyChartPage({
               mode="hours"
               buckets={weeklyBuckets}
               legendCategoriesTopDown={legendCategoriesTopDown}
+              categoryConfigs={categoryConfigs}
               hiddenCategories={hiddenCategories}
               onToggleCategory={toggleCategoryVisibility}
               onResetHiddenCategories={() => setHiddenCategories(new Set())}
@@ -762,6 +789,7 @@ export function DailyChartPage({
               mode="percent"
               buckets={dailyBuckets}
               legendCategoriesTopDown={legendCategoriesTopDown}
+              categoryConfigs={categoryConfigs}
               hiddenCategories={hiddenCategories}
               onToggleCategory={toggleCategoryVisibility}
               onResetHiddenCategories={() => setHiddenCategories(new Set())}
@@ -780,6 +808,7 @@ export function DailyChartPage({
               mode="percent"
               buckets={weeklyBuckets}
               legendCategoriesTopDown={legendCategoriesTopDown}
+              categoryConfigs={categoryConfigs}
               hiddenCategories={hiddenCategories}
               onToggleCategory={toggleCategoryVisibility}
               onResetHiddenCategories={() => setHiddenCategories(new Set())}
@@ -863,7 +892,9 @@ export function DailyChartPage({
                           <span className="chart-cat-pill">
                             <span
                               className="chart-swatch"
-                              style={{ backgroundColor: getCategoryColor(catKey) }}
+                              style={{
+                                backgroundColor: getCategoryColor(catKey, categoryConfigs),
+                              }}
                             />
                             <span>{formatCategoryLabel(catKey)}</span>
                           </span>

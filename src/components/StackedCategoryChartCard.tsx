@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { CalendarCategoryConfigItem } from '../types/categoryRule'
 import {
   computeNiceHoursScale,
   formatCategoryLabel,
@@ -15,6 +16,7 @@ interface StackedCategoryChartCardProps {
   mode: StackedChartMode
   buckets: readonly ChartBucketInput[]
   legendCategoriesTopDown: readonly string[]
+  categoryConfigs?: readonly CalendarCategoryConfigItem[]
   hiddenCategories: ReadonlySet<string>
   onToggleCategory: (category: string) => void
   onResetHiddenCategories: () => void
@@ -38,6 +40,7 @@ export function StackedCategoryChartCard({
   mode,
   buckets,
   legendCategoriesTopDown,
+  categoryConfigs,
   hiddenCategories,
   onToggleCategory,
   onResetHiddenCategories,
@@ -91,7 +94,7 @@ export function StackedCategoryChartCard({
         rawSegments.push({
           category: cat,
           hours,
-          color: getCategoryColor(cat),
+          color: getCategoryColor(cat, categoryConfigs),
           yStartHours: visibleTotal,
           yEndHours: nextTotal,
         })
@@ -113,7 +116,7 @@ export function StackedCategoryChartCard({
         segments,
       }
     })
-  }, [buckets, hiddenCategories, stackOrderBottomUp])
+  }, [buckets, categoryConfigs, hiddenCategories, stackOrderBottomUp])
 
   const maxVisibleHours = useMemo(
     () => computedBars.reduce((max, b) => Math.max(max, b.visibleTotalHours), 0),
@@ -211,7 +214,7 @@ export function StackedCategoryChartCard({
                     >
                       <span
                         className="chart-swatch"
-                        style={{ backgroundColor: getCategoryColor(cat) }}
+                        style={{ backgroundColor: getCategoryColor(cat, categoryConfigs) }}
                       />
                       <span className="chart-legend-name">{formatCategoryLabel(cat)}</span>
                       {totalHrs > 0 && (

@@ -1,10 +1,12 @@
 import type {
+  CalendarCategoryConfigItem,
   CalendarCategoryRuleItem,
   CalendarLogItem,
   CalendarLogsQuery,
   DailyCategorySummary,
   DailySummaryQuery,
   ReprocessLogsResult,
+  UpsertCalendarCategoryPayload,
   UpsertCategoryRulePayload,
   WeeklyCategorySummary,
   WeeklySummaryQuery,
@@ -49,6 +51,74 @@ export async function deleteCategoryRule(
   id: number,
 ): Promise<void> {
   return requestJson<void>(baseUrl, `/api/category-rules/${id}`, token, {
+    method: 'DELETE',
+  })
+}
+
+export async function listCategoryConfigs(
+  baseUrl: string,
+  token: string | null,
+): Promise<CalendarCategoryConfigItem[]> {
+  return requestJson<CalendarCategoryConfigItem[]>(baseUrl, '/api/categories', token)
+}
+
+export async function createCategoryConfig(
+  baseUrl: string,
+  token: string | null,
+  payload: UpsertCalendarCategoryPayload,
+): Promise<CalendarCategoryConfigItem> {
+  return requestJson<CalendarCategoryConfigItem>(baseUrl, '/api/categories', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateCategoryConfig(
+  baseUrl: string,
+  token: string | null,
+  id: number,
+  payload: UpsertCalendarCategoryPayload,
+): Promise<CalendarCategoryConfigItem> {
+  return requestJson<CalendarCategoryConfigItem>(baseUrl, `/api/categories/${id}`, token, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function reorderCategoryConfigs(
+  baseUrl: string,
+  token: string | null,
+  orderedCategoryIds: number[],
+): Promise<CalendarCategoryConfigItem[]> {
+  return requestJson<CalendarCategoryConfigItem[]>(
+    baseUrl,
+    '/api/categories/reorder',
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({ orderedCategoryIds }),
+    },
+  )
+}
+
+export async function resetDefaultCategoryConfigs(
+  baseUrl: string,
+  token: string | null,
+): Promise<CalendarCategoryConfigItem[]> {
+  return requestJson<CalendarCategoryConfigItem[]>(
+    baseUrl,
+    '/api/categories/reset-defaults',
+    token,
+    { method: 'POST' },
+  )
+}
+
+export async function deleteCategoryConfig(
+  baseUrl: string,
+  token: string | null,
+  id: number,
+): Promise<void> {
+  return requestJson<void>(baseUrl, `/api/categories/${id}`, token, {
     method: 'DELETE',
   })
 }

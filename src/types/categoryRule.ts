@@ -50,6 +50,21 @@ export interface ReprocessLogsResult {
   logsRemovedOrSkipped: number
 }
 
+export interface CalendarCategoryConfigItem {
+  calendarCategoryId: number
+  category: string
+  sortOrder: number
+  color: string
+  isActive: boolean
+}
+
+export interface UpsertCalendarCategoryPayload {
+  category: string
+  sortOrder: number
+  color: string
+  isActive: boolean
+}
+
 export interface DailyCategoryBucket {
   day: string
   totalHours: number
@@ -58,6 +73,7 @@ export interface DailyCategoryBucket {
 
 export interface DailyCategorySummary {
   categories: string[]
+  categoryConfigs?: CalendarCategoryConfigItem[]
   days: DailyCategoryBucket[]
 }
 
@@ -71,6 +87,7 @@ export interface WeeklyCategoryBucket {
 
 export interface WeeklyCategorySummary {
   categories: string[]
+  categoryConfigs?: CalendarCategoryConfigItem[]
   weeks: WeeklyCategoryBucket[]
 }
 

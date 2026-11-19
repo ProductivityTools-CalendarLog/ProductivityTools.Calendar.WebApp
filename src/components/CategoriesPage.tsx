@@ -16,6 +16,7 @@ import type {
   CategoryMatchField,
   UpsertCategoryRulePayload,
 } from '../types/categoryRule'
+import { CategorySortingPanel } from './CategorySortingPanel'
 
 const LAST_ACCOUNT_KEY = 'pt_calendar_last_account'
 
@@ -534,6 +535,9 @@ export function CategoriesPage({ apiUrl, calendars, signedInEmail }: CategoriesP
           </button>
         </div>
       )}
+
+      {/* PANEL 0: Category Sort Order & Colors Configuration */}
+      <CategorySortingPanel apiUrl={apiUrl} />
 
       {/* PANEL 1: Category Rules */}
       <section className="panel" aria-labelledby="category-rules-heading">
