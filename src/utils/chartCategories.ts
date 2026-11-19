@@ -4,11 +4,11 @@ export const CANONICAL_CATEGORIES_TOP_DOWN: ReadonlyArray<{
   name: string
   color: string
 }> = [
-  { name: 'SelfDevelopment', color: '#38761d' },
+  { name: 'Self Development', color: '#38761d' },
   { name: 'Coding', color: '#6aa84f' },
   { name: 'Journal', color: '#93c47d' },
-  { name: 'FocusedWork', color: '#b6d7a8' },
-  { name: 'IndividualProjectWork', color: '#d9ead3' },
+  { name: 'Focused Work', color: '#b6d7a8' },
+  { name: 'Individual Project Work', color: '#d9ead3' },
   { name: 'Operations', color: '#ffe599' },
   { name: 'Emails', color: '#f9cb9c' },
   { name: 'TopDown', color: '#ff6d01' },
@@ -39,6 +39,10 @@ export interface ChartBucketInput {
   byCategory: Record<string, number>
 }
 
+function normalizeLooseCategoryKey(value: string): string {
+  return value.replace(/\s+/g, '').trim().toLowerCase()
+}
+
 export function getCategoryColor(
   category: string,
   categoryConfigs?: readonly CalendarCategoryConfigItem[],
@@ -47,9 +51,11 @@ export function getCategoryColor(
     return UNCATEGORIZED_COLOR
   }
 
+  const key = normalizeLooseCategoryKey(category)
+
   if (categoryConfigs && categoryConfigs.length > 0) {
     const found = categoryConfigs.find(
-      (c) => c.category.toLowerCase() === category.toLowerCase(),
+      (c) => normalizeLooseCategoryKey(c.category) === key,
     )
     if (found && found.color) {
       return found.color
@@ -57,7 +63,7 @@ export function getCategoryColor(
   }
 
   const canonical = CANONICAL_CATEGORIES_TOP_DOWN.find(
-    (c) => c.name.toLowerCase() === category.toLowerCase(),
+    (c) => normalizeLooseCategoryKey(c.name) === key,
   )
   if (canonical) {
     return canonical.color
@@ -108,9 +114,12 @@ export function buildOrderedLegendCategories(
       hasUncategorized = true
       continue
     }
-    const match = configuredTopDown.find((c) => c.toLowerCase() === cat.toLowerCase())
+    const looseKey = normalizeLooseCategoryKey(cat)
+    const match = configuredTopDown.find(
+      (c) => normalizeLooseCategoryKey(c) === looseKey,
+    )
     if (match) {
-      configuredLowerToActual.set(match.toLowerCase(), cat)
+      configuredLowerToActual.set(normalizeLooseCategoryKey(match), cat)
     } else if (!extraCategories.includes(cat)) {
       extraCategories.push(cat)
     }
@@ -126,7 +135,8 @@ export function buildOrderedLegendCategories(
     ordered.push(extra)
   }
   for (const cfgName of configuredTopDown) {
-    const actualName = configuredLowerToActual.get(cfgName.toLowerCase()) ?? cfgName
+    const actualName =
+      configuredLowerToActual.get(normalizeLooseCategoryKey(cfgName)) ?? cfgName
     ordered.push(actualName)
   }
   return ordered
