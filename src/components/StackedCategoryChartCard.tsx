@@ -382,7 +382,11 @@ export function StackedCategoryChartCard({
                       <span className="chart-legend-name">{formatCategoryLabel(cat)}</span>
                       {totalHrs > 0 && (
                         <span className="chart-legend-hours">
-                          {mode === 'percent' ? `${pct}%` : `${totalHrs.toFixed(1)}h`}
+                          {mode === 'percent'
+                            ? `${pct}%`
+                            : granularity === 'week'
+                              ? `${Math.round(totalHrs)}h`
+                              : `${totalHrs.toFixed(1)}h`}
                         </span>
                       )}
                     </button>
@@ -423,7 +427,11 @@ export function StackedCategoryChartCard({
                       fill="#334155"
                       fontSize="12"
                     >
-                      {mode === 'percent' ? `${tick}%` : tick.toFixed(2)}
+                      {mode === 'percent'
+                        ? `${tick}%`
+                        : granularity === 'week'
+                          ? `${Math.round(tick)}`
+                          : tick.toFixed(2)}
                     </text>
                   </g>
                 )
@@ -513,7 +521,9 @@ export function StackedCategoryChartCard({
                           fontWeight="500"
                           style={{ fontVariantNumeric: 'tabular-nums' }}
                         >
-                          {bar.visibleTotalHours.toFixed(2)}
+                          {granularity === 'week'
+                            ? Math.round(bar.visibleTotalHours)
+                            : bar.visibleTotalHours.toFixed(2)}
                         </text>
                       ) : (
                         <text
@@ -525,7 +535,9 @@ export function StackedCategoryChartCard({
                           fontWeight="500"
                           style={{ fontVariantNumeric: 'tabular-nums' }}
                         >
-                          {bar.visibleTotalHours.toFixed(2)}
+                          {granularity === 'week'
+                            ? Math.round(bar.visibleTotalHours)
+                            : bar.visibleTotalHours.toFixed(2)}
                         </text>
                       ))}
 
