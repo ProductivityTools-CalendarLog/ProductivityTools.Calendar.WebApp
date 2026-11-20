@@ -229,6 +229,15 @@ export function StackedCategoryChartCard({
     [computedBars],
   )
 
+  const averageVisibleHours = useMemo(() => {
+    if (computedBars.length === 0) return 0
+    const sum = computedBars.reduce((acc, b) => acc + b.visibleTotalHours, 0)
+    return sum / computedBars.length
+  }, [computedBars])
+
+  const showAverageLine =
+    granularity === 'week' && mode === 'hours' && averageVisibleHours > 0
+
   const hoursScale = useMemo(
     () => computeNiceHoursScale(maxVisibleHours),
     [maxVisibleHours],
@@ -245,11 +254,15 @@ export function StackedCategoryChartCard({
   const topMargin = mode === 'percent' && compactTopLabels ? 42 : 30
   const bottomMargin = 84
   const leftAxisWidth = 56
-  const rightPadding = 20
+  const rightPadding = showAverageLine ? 82 : 20
 
   const svgWidth = Math.max(
     660,
     leftAxisWidth + computedBars.length * barPitch + rightPadding,
+  )
+  const plotRightX = Math.max(
+    svgWidth - rightPadding,
+    leftAxisWidth + computedBars.length * barPitch + 10,
   )
   const svgHeight = topMargin + plotHeight + bottomMargin
   const baselineY = topMargin + plotHeight
@@ -332,6 +345,18 @@ export function StackedCategoryChartCard({
               {mode === 'percent' ? '100% Skumulowany' : 'Godziny (h)'}
             </span>
             <span className="badge badge-neutral">{computedBars.length} słupków</span>
+            {granularity === 'week' && computedBars.length > 0 && (
+              <span
+                className="badge"
+                style={{
+                  backgroundColor: '#fef2f2',
+                  color: '#b91c1c',
+                  border: '1px solid #fecaca',
+                }}
+              >
+                Average ({computedBars.length} tyg.): {Math.round(averageVisibleHours)} h
+              </span>
+            )}
           </div>
           <p style={{ fontSize: '0.79rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
             {subtitle}
@@ -415,7 +440,7 @@ export function StackedCategoryChartCard({
                     <line
                       x1={leftAxisWidth}
                       y1={y}
-                      x2={svgWidth - rightPadding / 2}
+                      x2={plotRightX}
                       y2={y}
                       stroke={isZero ? '#334155' : '#cbd5e1'}
                       strokeWidth={isZero ? 1.25 : 1}
@@ -555,6 +580,55 @@ export function StackedCategoryChartCard({
                   </g>
                 )
               })}
+
+              {/* Horizontal Average Line across the 26 Weekly Bars */}
+              {showAverageLine && (() => {
+                const avgY = yForValue(averageVisibleHours)
+                const labelText = `Avg: ${Math.round(averageVisibleHours)}h`
+                return (
+                  <g style={{ pointerEvents: 'none' }}>
+                    <line
+                      x1={leftAxisWidth}
+                      y1={avgY}
+                      x2={plotRightX}
+                      y2={avgY}
+                      stroke="#ffffff"
+                      strokeWidth={3.5}
+                      strokeOpacity={0.8}
+                    />
+                    <line
+                      x1={leftAxisWidth}
+                      y1={avgY}
+                      x2={plotRightX}
+                      y2={avgY}
+                      stroke="#dc2626"
+                      strokeWidth={1.75}
+                      strokeDasharray="6 4"
+                    />
+                    <rect
+                      x={plotRightX + 4}
+                      y={avgY - 10}
+                      width={64}
+                      height={20}
+                      rx={5}
+                      fill="#fef2f2"
+                      stroke="#fca5a5"
+                      strokeWidth={1}
+                    />
+                    <text
+                      x={plotRightX + 36}
+                      y={avgY + 4}
+                      textAnchor="middle"
+                      fill="#b91c1c"
+                      fontSize="11"
+                      fontWeight="700"
+                      style={{ fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      {labelText}
+                    </text>
+                  </g>
+                )
+              })()}
             </svg>
           </div>
         </div>
