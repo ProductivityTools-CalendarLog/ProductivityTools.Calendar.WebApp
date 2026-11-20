@@ -238,7 +238,7 @@ export function StackedCategoryChartCard({
   const ticks = mode === 'percent' ? PERCENT_TICKS : hoursScale.ticks
 
   const plotHeight = 310
-  const barPitch = computedBars.length <= 18 ? 38 : computedBars.length <= 34 ? 30 : 24
+  const barPitch = computedBars.length <= 22 ? 36 : computedBars.length <= 34 ? 30 : 24
   const barWidth = Math.max(14, Math.round(barPitch * 0.68))
   const compactTopLabels = barPitch < 34
   const topMargin = mode === 'percent' && compactTopLabels ? 42 : 30

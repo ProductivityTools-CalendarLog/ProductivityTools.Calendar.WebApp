@@ -25,16 +25,26 @@ import {
 } from '../utils/chartCategories'
 import { StackedCategoryChartCard } from './StackedCategoryChartCard'
 
-type RangePreset = '14d' | '30d' | '60d' | '180d' | 'all' | 'custom'
+type RangePreset = '14d' | '21d' | '30d' | '60d' | '180d' | 'all' | 'custom'
 type SortDirection = 'desc' | 'asc'
 type ChartVisibilityFilter = 'all' | 'daily' | 'weekly' | 'hours' | 'percent'
+
+const DAILY_CHART_MAX_DAYS = 21
 
 function computePresetDates(preset: Exclude<RangePreset, 'all' | 'custom'>): {
   fromDay: string
   toDay: string
 } {
   const days =
-    preset === '14d' ? 14 : preset === '30d' ? 30 : preset === '60d' ? 60 : 180
+    preset === '14d'
+      ? 14
+      : preset === '21d'
+        ? 21
+        : preset === '30d'
+          ? 30
+          : preset === '60d'
+            ? 60
+            : 180
   const today = new Date()
   const start = new Date(today)
   start.setDate(today.getDate() - (days - 1))
@@ -285,11 +295,12 @@ export function DailyChartPage({
         )
       : dailySummary.days
 
-    const sorted = [...base].sort((a, b) =>
-      sortDirection === 'desc'
-        ? b.day.localeCompare(a.day)
-        : a.day.localeCompare(b.day),
-    )
+    const latestDays = [...base]
+      .sort((a, b) => b.day.localeCompare(a.day))
+      .slice(0, DAILY_CHART_MAX_DAYS)
+
+    const sorted =
+      sortDirection === 'desc' ? latestDays : [...latestDays].reverse()
 
     return sorted.map((d) => ({
       key: d.day,
@@ -535,6 +546,7 @@ export function DailyChartPage({
               {(
                 [
                   { id: '14d', label: '14 dni' },
+                  { id: '21d', label: '21 dni' },
                   { id: '30d', label: '30 dni' },
                   { id: '60d', label: '60 dni' },
                   { id: '180d', label: '180 dni' },
@@ -660,7 +672,7 @@ export function DailyChartPage({
             <StackedCategoryChartCard
               chartId="daily-hours-chart"
               title="1. Wykres dzienny — Godziny wg kategorii"
-              subtitle="Każdy słupek to osobny dzień (YYYY-MM-DD); kliknij słupek, aby wyświetlić pod wykresem wydarzenia z tego dnia."
+              subtitle="Ostatnie 21 dni (YYYY-MM-DD); kliknij słupek, aby wyświetlić pod wykresem wydarzenia z tego dnia."
               mode="hours"
               granularity="day"
               apiUrl={apiUrl}
@@ -706,7 +718,7 @@ export function DailyChartPage({
             <StackedCategoryChartCard
               chartId="daily-percent-chart"
               title="3. Wykres dzienny — Udział procentowy kategorii (100%)"
-              subtitle="Każdy dzień znormalizowany do 100% czasu; kliknij słupek, aby wyświetlić pod wykresem wydarzenia i ich udział procentowy."
+              subtitle="Ostatnie 21 dni znormalizowanych do 100% czasu; kliknij słupek, aby wyświetlić pod wykresem wydarzenia i ich udział procentowy."
               mode="percent"
               granularity="day"
               apiUrl={apiUrl}
