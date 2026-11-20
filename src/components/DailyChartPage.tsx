@@ -30,6 +30,7 @@ type SortDirection = 'desc' | 'asc'
 type ChartVisibilityFilter = 'all' | 'daily' | 'weekly' | 'hours' | 'percent'
 
 const DAILY_CHART_MAX_DAYS = 21
+const WEEKLY_CHART_MAX_WEEKS = 26
 
 function computePresetDates(preset: Exclude<RangePreset, 'all' | 'custom'>): {
   fromDay: string
@@ -317,11 +318,12 @@ export function DailyChartPage({
   ])
 
   const weeklyBuckets = useMemo((): ChartBucketInput[] => {
-    const sorted = [...weeklySummary.weeks].sort((a, b) =>
-      sortDirection === 'desc'
-        ? b.weekNumber - a.weekNumber
-        : a.weekNumber - b.weekNumber,
-    )
+    const latestWeeks = [...weeklySummary.weeks]
+      .sort((a, b) => b.weekNumber - a.weekNumber)
+      .slice(0, WEEKLY_CHART_MAX_WEEKS)
+
+    const sorted =
+      sortDirection === 'desc' ? latestWeeks : [...latestWeeks].reverse()
 
     return sorted.map((w) => ({
       key: String(w.weekNumber),
@@ -695,7 +697,7 @@ export function DailyChartPage({
             <StackedCategoryChartCard
               chartId="weekly-hours-chart"
               title="2. Wykres tygodniowy — Godziny wg kategorii"
-              subtitle="Każdy słupek to osobny tydzień ISO (RRRRTT, np. 202647); kliknij słupek, aby wyświetlić pod wykresem wydarzenia z tego tygodnia."
+              subtitle="Ostatnie 26 tygodni ISO (RRRRTT, np. 202647); kliknij słupek, aby wyświetlić pod wykresem wydarzenia z tego tygodnia."
               mode="hours"
               granularity="week"
               apiUrl={apiUrl}
@@ -741,7 +743,7 @@ export function DailyChartPage({
             <StackedCategoryChartCard
               chartId="weekly-percent-chart"
               title="4. Wykres tygodniowy — Udział procentowy kategorii (100%)"
-              subtitle="Każdy tydzień ISO (RRRRTT) znormalizowany do 100% czasu; kliknij słupek, aby wyświetlić pod wykresem wydarzenia z tego tygodnia."
+              subtitle="Ostatnie 26 tygodni ISO (RRRRTT) znormalizowanych do 100% czasu; kliknij słupek, aby wyświetlić pod wykresem wydarzenia z tego tygodnia."
               mode="percent"
               granularity="week"
               apiUrl={apiUrl}
