@@ -955,6 +955,9 @@ select {
   gap: 1.25rem;
   padding: 1.35rem 1.35rem 1.1rem;
   background-color: #ffffff;
+}
+
+.chart-workspace:last-child {
   border-bottom-left-radius: var(--radius-lg);
   border-bottom-right-radius: var(--radius-lg);
 }
@@ -1128,6 +1131,25 @@ select {
   gap: 0.45rem;
   font-size: 0.8rem;
   font-weight: 500;
+}
+
+.chart-inline-drilldown {
+  border-top: 1px solid var(--border-subtle);
+  background-color: var(--bg-surface);
+  border-bottom-left-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.chart-inline-drilldown-header {
+  padding: 0.9rem 1.35rem;
+  background-color: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 /* Responsive */

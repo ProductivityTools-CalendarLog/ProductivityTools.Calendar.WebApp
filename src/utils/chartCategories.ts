@@ -39,8 +39,40 @@ export interface ChartBucketInput {
   byCategory: Record<string, number>
 }
 
-function normalizeLooseCategoryKey(value: string): string {
+export function normalizeLooseCategoryKey(value: string): string {
   return value.replace(/\s+/g, '').trim().toLowerCase()
+}
+
+export function resolveCanonicalCategoryName(
+  rawCategory: string | null | undefined,
+  categoryConfigs?: readonly CalendarCategoryConfigItem[],
+): string {
+  if (!rawCategory || !rawCategory.trim()) {
+    return UNCATEGORIZED_KEY
+  }
+  const key = normalizeLooseCategoryKey(rawCategory)
+  if (categoryConfigs && categoryConfigs.length > 0) {
+    const found = categoryConfigs.find(
+      (c) => normalizeLooseCategoryKey(c.category) === key,
+    )
+    if (found) {
+      return found.category
+    }
+  }
+  const canonical = CANONICAL_CATEGORIES_TOP_DOWN.find(
+    (c) => normalizeLooseCategoryKey(c.name) === key,
+  )
+  return canonical ? canonical.name : rawCategory.trim()
+}
+
+export function formatTimeRange(startIso: string, endIso: string): string {
+  const s = new Date(startIso)
+  const e = new Date(endIso)
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
+    return ''
+  }
+  const opts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }
+  return `${s.toLocaleTimeString('pl-PL', opts)}–${e.toLocaleTimeString('pl-PL', opts)}`
 }
 
 export function getCategoryColor(

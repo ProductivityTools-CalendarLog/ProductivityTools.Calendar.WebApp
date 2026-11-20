@@ -1,28 +1,42 @@
-import { useMemo, useState } from 'react'
-import type { CalendarCategoryConfigItem } from '../types/categoryRule'
+import { useEffect, useMemo, useState } from 'react'
+import { queryCalendarLogs } from '../api/categoryRulesApi'
+import { useAuth } from '../auth/useAuth'
+import type {
+  CalendarCategoryConfigItem,
+  CalendarLogItem,
+} from '../types/categoryRule'
 import {
+  UNCATEGORIZED_KEY,
   computeNiceHoursScale,
   formatCategoryLabel,
+  formatTimeRange,
   getCategoryColor,
+  normalizeLooseCategoryKey,
+  resolveCanonicalCategoryName,
   type ChartBucketInput,
 } from '../utils/chartCategories'
 
 export type StackedChartMode = 'hours' | 'percent'
+export type StackedChartGranularity = 'day' | 'week'
 
 interface StackedCategoryChartCardProps {
   chartId: string
   title: string
   subtitle: string
   mode: StackedChartMode
+  granularity: StackedChartGranularity
+  apiUrl: string
+  accountFilter: string
+  effectiveFromDay?: string
+  effectiveToDay?: string
+  includeUncategorized: boolean
+  refreshGeneration: number
   buckets: readonly ChartBucketInput[]
   legendCategoriesTopDown: readonly string[]
   categoryConfigs?: readonly CalendarCategoryConfigItem[]
   hiddenCategories: ReadonlySet<string>
   onToggleCategory: (category: string) => void
   onResetHiddenCategories: () => void
-  selectedKey: string | null
-  onSelectBucket: (key: string) => void
-  clickHintLabel: string
 }
 
 interface HoveredBucketState {
@@ -38,17 +52,35 @@ export function StackedCategoryChartCard({
   title,
   subtitle,
   mode,
+  granularity,
+  apiUrl,
+  accountFilter,
+  effectiveFromDay,
+  effectiveToDay,
+  includeUncategorized,
+  refreshGeneration,
   buckets,
   legendCategoriesTopDown,
   categoryConfigs,
   hiddenCategories,
   onToggleCategory,
   onResetHiddenCategories,
-  selectedKey,
-  onSelectBucket,
-  clickHintLabel,
 }: StackedCategoryChartCardProps) {
+  const { getIdToken } = useAuth()
+
   const [hovered, setHovered] = useState<HoveredBucketState | null>(null)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [tableCategoryFilter, setTableCategoryFilter] = useState<string>('ALL')
+  const [rawSelectedLogs, setRawSelectedLogs] = useState<CalendarLogItem[]>([])
+  const [loadingLogs, setLoadingLogs] = useState<boolean>(false)
+
+  const hiddenLooseKeys = useMemo(() => {
+    const set = new Set<string>()
+    for (const c of hiddenCategories) {
+      set.add(normalizeLooseCategoryKey(c))
+    }
+    return set
+  }, [hiddenCategories])
 
   const stackOrderBottomUp = useMemo(
     () => [...legendCategoriesTopDown].reverse(),
@@ -68,12 +100,12 @@ export function StackedCategoryChartCard({
   const grandTotalVisibleHours = useMemo(() => {
     let sum = 0
     for (const [cat, hrs] of categoryTotals.entries()) {
-      if (!hiddenCategories.has(cat)) {
+      if (!hiddenLooseKeys.has(normalizeLooseCategoryKey(cat))) {
         sum += hrs
       }
     }
     return sum
-  }, [categoryTotals, hiddenCategories])
+  }, [categoryTotals, hiddenLooseKeys])
 
   const computedBars = useMemo(() => {
     return buckets.map((b) => {
@@ -87,7 +119,7 @@ export function StackedCategoryChartCard({
       }> = []
 
       for (const cat of stackOrderBottomUp) {
-        if (hiddenCategories.has(cat)) continue
+        if (hiddenLooseKeys.has(normalizeLooseCategoryKey(cat))) continue
         const hours = b.byCategory[cat] ?? 0
         if (hours <= 0) continue
         const nextTotal = visibleTotal + hours
@@ -116,7 +148,81 @@ export function StackedCategoryChartCard({
         segments,
       }
     })
-  }, [buckets, categoryConfigs, hiddenCategories, stackOrderBottomUp])
+  }, [buckets, categoryConfigs, hiddenLooseKeys, stackOrderBottomUp])
+
+  const selectedBarData = useMemo(() => {
+    if (!selectedKey) return null
+    return computedBars.find((b) => b.key === selectedKey) ?? null
+  }, [computedBars, selectedKey])
+
+  const activeSelectedKey = selectedBarData ? selectedBarData.key : null
+
+  // Fetch events for this chart's independently selected bar
+  useEffect(() => {
+    if (!activeSelectedKey) return
+    let cancelled = false
+
+    const run = async () => {
+      setLoadingLogs(true)
+      try {
+        const token = await getIdToken()
+        const accountParam = accountFilter === 'ALL' ? undefined : accountFilter
+        const items =
+          granularity === 'day'
+            ? await queryCalendarLogs(apiUrl, token, {
+                account: accountParam,
+                fromDay: activeSelectedKey,
+                toDay: activeSelectedKey,
+                limit: 500,
+              })
+            : await queryCalendarLogs(apiUrl, token, {
+                account: accountParam,
+                weekNumber: Number.parseInt(activeSelectedKey, 10),
+                fromDay: effectiveFromDay,
+                toDay: effectiveToDay,
+                limit: 1500,
+              })
+        if (!cancelled) {
+          setRawSelectedLogs(
+            [...items].sort((a, b) => a.startTime.localeCompare(b.startTime)),
+          )
+        }
+      } catch {
+        if (!cancelled) {
+          setRawSelectedLogs([])
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingLogs(false)
+        }
+      }
+    }
+
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    accountFilter,
+    activeSelectedKey,
+    apiUrl,
+    effectiveFromDay,
+    effectiveToDay,
+    getIdToken,
+    granularity,
+    refreshGeneration,
+  ])
+
+  const handleToggleBarSelection = (key: string) => {
+    if (activeSelectedKey === key) {
+      setSelectedKey(null)
+      setRawSelectedLogs([])
+      setTableCategoryFilter('ALL')
+    } else {
+      setSelectedKey(key)
+      setTableCategoryFilter('ALL')
+    }
+  }
 
   const maxVisibleHours = useMemo(
     () => computedBars.reduce((max, b) => Math.max(max, b.visibleTotalHours), 0),
@@ -156,6 +262,62 @@ export function StackedCategoryChartCard({
     if (!hovered) return null
     return computedBars.find((b) => b.key === hovered.key) ?? null
   }, [computedBars, hovered])
+
+  // Filter raw logs to ONLY the events actually included in the clicked bar
+  // (respecting includeUncategorized and hiddenCategories in the legend!)
+  const barIncludedLogs = useMemo(() => {
+    return rawSelectedLogs
+      .map((log) => ({
+        log,
+        canonicalCategory: resolveCanonicalCategoryName(log.category, categoryConfigs),
+      }))
+      .filter(({ canonicalCategory }) => {
+        if (!includeUncategorized && canonicalCategory === UNCATEGORIZED_KEY) {
+          return false
+        }
+        if (hiddenLooseKeys.has(normalizeLooseCategoryKey(canonicalCategory))) {
+          return false
+        }
+        return true
+      })
+  }, [categoryConfigs, hiddenLooseKeys, includeUncategorized, rawSelectedLogs])
+
+  const barCategoryBreakdown = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const item of barIncludedLogs) {
+      map.set(
+        item.canonicalCategory,
+        (map.get(item.canonicalCategory) ?? 0) + item.log.durationHours,
+      )
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1])
+  }, [barIncludedLogs])
+
+  const barTotalHours = useMemo(
+    () => barIncludedLogs.reduce((acc, item) => acc + item.log.durationHours, 0),
+    [barIncludedLogs],
+  )
+
+  const effectiveTableCategoryFilter = useMemo(() => {
+    if (tableCategoryFilter === 'ALL') return 'ALL'
+    return barCategoryBreakdown.some(([cat]) => cat === tableCategoryFilter)
+      ? tableCategoryFilter
+      : 'ALL'
+  }, [barCategoryBreakdown, tableCategoryFilter])
+
+  const displayedTableLogs = useMemo(() => {
+    if (effectiveTableCategoryFilter === 'ALL') {
+      return barIncludedLogs
+    }
+    return barIncludedLogs.filter(
+      (item) => item.canonicalCategory === effectiveTableCategoryFilter,
+    )
+  }, [barIncludedLogs, effectiveTableCategoryFilter])
+
+  const clickHintLabel =
+    granularity === 'day'
+      ? 'Kliknij słupek, aby rozwinąć pod wykresem listę wydarzeń z tego dnia'
+      : 'Kliknij słupek, aby rozwinąć pod wykresem listę wydarzeń z tego tygodnia'
 
   return (
     <section className="panel" aria-labelledby={`${chartId}-heading`}>
@@ -198,7 +360,7 @@ export function StackedCategoryChartCard({
 
             <ul className="chart-legend-list">
               {legendCategoriesTopDown.map((cat) => {
-                const isHidden = hiddenCategories.has(cat)
+                const isHidden = hiddenLooseKeys.has(normalizeLooseCategoryKey(cat))
                 const totalHrs = categoryTotals.get(cat) ?? 0
                 const pct =
                   !isHidden && grandTotalVisibleHours > 0
@@ -271,7 +433,7 @@ export function StackedCategoryChartCard({
                 const slotX = leftAxisWidth + index * barPitch + 6
                 const barX = slotX + Math.round((barPitch - barWidth) / 2)
                 const isHovered = hovered?.key === bar.key
-                const isSelected = selectedKey === bar.key
+                const isSelected = activeSelectedKey === bar.key
                 const topVal =
                   mode === 'percent'
                     ? bar.visibleTotalHours > 0
@@ -300,7 +462,7 @@ export function StackedCategoryChartCard({
                       })
                     }
                     onMouseLeave={() => setHovered(null)}
-                    onClick={() => onSelectBucket(bar.key)}
+                    onClick={() => handleToggleBarSelection(bar.key)}
                   >
                     {/* Hover / Selection Column Highlight */}
                     <rect
@@ -311,7 +473,7 @@ export function StackedCategoryChartCard({
                       rx={4}
                       fill={
                         isSelected
-                          ? 'hsla(219, 79%, 46%, 0.10)'
+                          ? 'hsla(219, 79%, 46%, 0.12)'
                           : isHovered
                             ? 'hsla(215, 25%, 27%, 0.05)'
                             : 'transparent'
@@ -382,6 +544,199 @@ export function StackedCategoryChartCard({
               })}
             </svg>
           </div>
+        </div>
+      )}
+
+      {/* Independent Per-Chart Drill-Down Table Rendered Directly Underneath This Chart */}
+      {activeSelectedKey && selectedBarData && (
+        <div
+          className="chart-inline-drilldown"
+          aria-labelledby={`${chartId}-drilldown-heading`}
+        >
+          <div className="chart-inline-drilldown-header">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.55rem',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <h3
+                  id={`${chartId}-drilldown-heading`}
+                  className="panel-title"
+                  style={{ fontSize: '0.9rem' }}
+                >
+                  Uwzględnione wydarzenia: {selectedBarData.tooltipTitle}
+                </h3>
+                <span className="badge badge-neutral">
+                  {barIncludedLogs.length} pozycji
+                </span>
+                <span className="badge badge-synced">
+                  Suma słupka: {barTotalHours.toFixed(2)} h
+                  {mode === 'percent' && barTotalHours > 0 ? ' (100%)' : ''}
+                </span>
+              </div>
+
+              {barCategoryBreakdown.length > 1 && (
+                <div className="filter-bar" role="group" aria-label="Filtr kategorii w słupku">
+                  <button
+                    type="button"
+                    className={`filter-pill ${effectiveTableCategoryFilter === 'ALL' ? 'active' : ''}`}
+                    onClick={() => setTableCategoryFilter('ALL')}
+                  >
+                    Wszystkie ({barIncludedLogs.length})
+                  </button>
+                  {barCategoryBreakdown.map(([cat, hrs]) => {
+                    const pct =
+                      barTotalHours > 0 ? Math.round((hrs / barTotalHours) * 100) : 0
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        className={`filter-pill ${effectiveTableCategoryFilter === cat ? 'active' : ''}`}
+                        onClick={() => setTableCategoryFilter(cat)}
+                      >
+                        <span
+                          className="chart-swatch"
+                          style={{
+                            width: 10,
+                            height: 10,
+                            backgroundColor: getCategoryColor(cat, categoryConfigs),
+                          }}
+                        />
+                        <span>
+                          {formatCategoryLabel(cat)} ·{' '}
+                          {mode === 'percent' ? `${pct}%` : `${hrs.toFixed(2)}h`}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => {
+                setSelectedKey(null)
+                setRawSelectedLogs([])
+                setTableCategoryFilter('ALL')
+              }}
+            >
+              Zamknij ✕
+            </button>
+          </div>
+
+          {loadingLogs ? (
+            <div className="empty-state" style={{ padding: '1.75rem 1rem' }}>
+              Ładowanie wydarzeń uwzględnionych w słupku {activeSelectedKey}…
+            </div>
+          ) : displayedTableLogs.length === 0 ? (
+            <div className="empty-state" style={{ padding: '1.75rem 1rem' }}>
+              Brak wydarzeń uwzględnionych w tym słupku.
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table className="cal-table">
+                <thead>
+                  <tr>
+                    {granularity === 'week' && <th>Dzień</th>}
+                    <th>Godziny</th>
+                    <th>Czas (h)</th>
+                    {mode === 'percent' && <th>Udział (%)</th>}
+                    <th>Kategoria</th>
+                    <th>Tytuł / Wartość</th>
+                    <th>Kalendarz</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedTableLogs.map(({ log, canonicalCategory }) => {
+                    const sharePct =
+                      barTotalHours > 0
+                        ? ((log.durationHours / barTotalHours) * 100).toFixed(1)
+                        : '0.0'
+                    return (
+                      <tr key={log.calendarLogId}>
+                        {granularity === 'week' && (
+                          <td
+                            style={{
+                              whiteSpace: 'nowrap',
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: '0.8rem',
+                            }}
+                          >
+                            {log.day}
+                          </td>
+                        )}
+                        <td
+                          style={{
+                            whiteSpace: 'nowrap',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '0.8rem',
+                          }}
+                        >
+                          {formatTimeRange(log.startTime, log.endTime)}
+                        </td>
+                        <td
+                          style={{
+                            fontWeight: 600,
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {log.durationHours.toFixed(2)}
+                        </td>
+                        {mode === 'percent' && (
+                          <td
+                            style={{
+                              fontVariantNumeric: 'tabular-nums',
+                              color: 'var(--text-secondary)',
+                            }}
+                          >
+                            {sharePct}%
+                          </td>
+                        )}
+                        <td>
+                          <span className="chart-cat-pill">
+                            <span
+                              className="chart-swatch"
+                              style={{
+                                backgroundColor: getCategoryColor(
+                                  canonicalCategory,
+                                  categoryConfigs,
+                                ),
+                              }}
+                            />
+                            <span>{formatCategoryLabel(canonicalCategory)}</span>
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 500 }}>
+                            {log.title || '(bez tytułu)'}
+                          </div>
+                          {log.value && (
+                            <div
+                              style={{
+                                fontSize: '0.76rem',
+                                color: 'var(--text-muted)',
+                              }}
+                            >
+                              Wartość: {log.value}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <span className="account-badge">{log.calendarName}</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
