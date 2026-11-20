@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { queryCalendarLogs } from '../api/categoryRulesApi'
 import { useAuth } from '../auth/useAuth'
 import type {
@@ -68,11 +68,31 @@ export function StackedCategoryChartCard({
 }: StackedCategoryChartCardProps) {
   const { getIdToken } = useAuth()
 
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null)
+  const [containerWidth, setContainerWidth] = useState<number>(880)
   const [hovered, setHovered] = useState<HoveredBucketState | null>(null)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [tableCategoryFilter, setTableCategoryFilter] = useState<string>('ALL')
   const [rawSelectedLogs, setRawSelectedLogs] = useState<CalendarLogItem[]>([])
   const [loadingLogs, setLoadingLogs] = useState<boolean>(false)
+
+  const hasBars = buckets.length > 0
+
+  useEffect(() => {
+    if (!hasBars) return
+    const el = scrollAreaRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const nextWidth = Math.floor(entry.contentRect.width)
+        if (nextWidth > 0) {
+          setContainerWidth((prev) => (prev === nextWidth ? prev : nextWidth))
+        }
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasBars])
 
   const hiddenLooseKeys = useMemo(() => {
     const set = new Set<string>()
@@ -247,23 +267,30 @@ export function StackedCategoryChartCard({
   const ticks = mode === 'percent' ? PERCENT_TICKS : hoursScale.ticks
 
   const plotHeight = 310
-  const barPitch =
-    computedBars.length <= 22 ? 36 : computedBars.length <= 26 ? 34 : computedBars.length <= 40 ? 30 : 24
-  const barWidth = Math.max(14, Math.round(barPitch * 0.68))
-  const compactTopLabels = barPitch < 34
+  const fitToContainer = computedBars.length > 0 && computedBars.length <= 32
+  const leftAxisWidth = 44
+  const slotOffset = 6
+  const rightPadding = showAverageLine ? 72 : 14
+  const availableBarsWidth = Math.max(
+    300,
+    containerWidth - leftAxisWidth - slotOffset - rightPadding,
+  )
+  const barPitch = fitToContainer
+    ? Math.min(42, Math.max(16, Math.floor(availableBarsWidth / computedBars.length)))
+    : computedBars.length <= 40
+      ? 28
+      : 24
+  const barWidth = Math.max(11, Math.round(barPitch * 0.68))
+  const compactTopLabels = barPitch < 25
   const topMargin = mode === 'percent' && compactTopLabels ? 42 : 30
   const bottomMargin = 84
-  const leftAxisWidth = 56
-  const rightPadding = showAverageLine ? 82 : 20
 
-  const svgWidth = Math.max(
-    660,
-    leftAxisWidth + computedBars.length * barPitch + rightPadding,
-  )
-  const plotRightX = Math.max(
-    svgWidth - rightPadding,
-    leftAxisWidth + computedBars.length * barPitch + 10,
-  )
+  const naturalSvgWidth =
+    leftAxisWidth + slotOffset + computedBars.length * barPitch + rightPadding
+  const svgWidth = fitToContainer
+    ? Math.max(naturalSvgWidth, containerWidth)
+    : Math.max(660, naturalSvgWidth)
+  const plotRightX = svgWidth - rightPadding
   const svgHeight = topMargin + plotHeight + bottomMargin
   const baselineY = topMargin + plotHeight
 
@@ -421,13 +448,22 @@ export function StackedCategoryChartCard({
             </ul>
           </aside>
 
-          {/* Right Scrollable SVG Stacked Bar Chart */}
-          <div className="chart-scroll-area">
+          {/* Right SVG Stacked Bar Chart */}
+          <div
+            ref={scrollAreaRef}
+            className="chart-scroll-area"
+            style={fitToContainer ? { overflowX: 'hidden', paddingBottom: 0 } : undefined}
+          >
             <svg
               className="daily-bar-svg"
               width={svgWidth}
               height={svgHeight}
               viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+              style={
+                fitToContainer
+                  ? { width: '100%', maxWidth: '100%', height: 'auto' }
+                  : undefined
+              }
               role="img"
               aria-label={title}
             >
@@ -464,17 +500,10 @@ export function StackedCategoryChartCard({
 
               {/* Stacked Bars */}
               {computedBars.map((bar, index) => {
-                const slotX = leftAxisWidth + index * barPitch + 6
+                const slotX = leftAxisWidth + index * barPitch + slotOffset
                 const barX = slotX + Math.round((barPitch - barWidth) / 2)
                 const isHovered = hovered?.key === bar.key
                 const isSelected = activeSelectedKey === bar.key
-                const topVal =
-                  mode === 'percent'
-                    ? bar.visibleTotalHours > 0
-                      ? 100
-                      : 0
-                    : bar.visibleTotalHours
-                const topBarY = yForValue(topVal)
 
                 return (
                   <g
@@ -534,37 +563,6 @@ export function StackedCategoryChartCard({
                         />
                       )
                     })}
-
-                    {/* Top Hours Label Above Bar */}
-                    {bar.visibleTotalHours > 0 &&
-                      (compactTopLabels && mode === 'percent' ? (
-                        <text
-                          transform={`translate(${barX + barWidth / 2 + 3}, ${topBarY - 5}) rotate(-55)`}
-                          textAnchor="start"
-                          fill="#64748b"
-                          fontSize="10"
-                          fontWeight="500"
-                          style={{ fontVariantNumeric: 'tabular-nums' }}
-                        >
-                          {granularity === 'week'
-                            ? Math.round(bar.visibleTotalHours)
-                            : bar.visibleTotalHours.toFixed(2)}
-                        </text>
-                      ) : (
-                        <text
-                          x={barX + barWidth / 2}
-                          y={Math.max(13, topBarY - 6)}
-                          textAnchor="middle"
-                          fill="#64748b"
-                          fontSize={compactTopLabels ? '10' : '11'}
-                          fontWeight="500"
-                          style={{ fontVariantNumeric: 'tabular-nums' }}
-                        >
-                          {granularity === 'week'
-                            ? Math.round(bar.visibleTotalHours)
-                            : bar.visibleTotalHours.toFixed(2)}
-                        </text>
-                      ))}
 
                     {/* Vertical -90deg X-Axis Label */}
                     <text
@@ -629,6 +627,61 @@ export function StackedCategoryChartCard({
                   </g>
                 )
               })()}
+
+              {/* Top Hours Labels Above Bars (drawn above Average line with crisp white halo) */}
+              <g style={{ pointerEvents: 'none' }}>
+                {computedBars.map((bar, index) => {
+                  if (bar.visibleTotalHours <= 0) return null
+                  const slotX = leftAxisWidth + index * barPitch + slotOffset
+                  const barX = slotX + Math.round((barPitch - barWidth) / 2)
+                  const topVal =
+                    mode === 'percent' ? 100 : bar.visibleTotalHours
+                  const topBarY = yForValue(topVal)
+                  const labelVal =
+                    granularity === 'week'
+                      ? Math.round(bar.visibleTotalHours)
+                      : bar.visibleTotalHours.toFixed(2)
+
+                  return compactTopLabels && mode === 'percent' ? (
+                    <text
+                      key={bar.key}
+                      transform={`translate(${barX + barWidth / 2 + 3}, ${topBarY - 5}) rotate(-55)`}
+                      textAnchor="start"
+                      fill="#475569"
+                      stroke="#ffffff"
+                      strokeWidth="3"
+                      strokeLinejoin="round"
+                      fontSize="10"
+                      fontWeight="600"
+                      style={{
+                        fontVariantNumeric: 'tabular-nums',
+                        paintOrder: 'stroke',
+                      }}
+                    >
+                      {labelVal}
+                    </text>
+                  ) : (
+                    <text
+                      key={bar.key}
+                      x={barX + barWidth / 2}
+                      y={Math.max(13, topBarY - 6)}
+                      textAnchor="middle"
+                      fill="#475569"
+                      stroke="#ffffff"
+                      strokeWidth="3.5"
+                      strokeLinejoin="round"
+                      fontSize={compactTopLabels ? '10' : '11'}
+                      fontWeight="600"
+                      style={{
+                        fontVariantNumeric: 'tabular-nums',
+                        paintOrder: 'stroke',
+                      }}
+                    >
+                      {labelVal}
+                    </text>
+                  )
+                })}
+              </g>
             </svg>
           </div>
         </div>
