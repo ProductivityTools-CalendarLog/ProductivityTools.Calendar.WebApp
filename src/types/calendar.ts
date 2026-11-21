@@ -10,7 +10,6 @@ export interface CalendarItem {
   defaultLookbackDays: number
   lastSyncedDate: string | null
   lastSyncedAtUtc: string | null
-  pendingBackfillFrom: string | null
   createdAtUtc: string
   updatedAtUtc: string
 }
@@ -22,7 +21,6 @@ export interface CreateCalendarPayload {
   type?: CalendarType
   isActive?: boolean
   defaultLookbackDays?: number
-  pendingBackfillFrom?: string | null
 }
 
 export interface UpdateCalendarPayload {
@@ -32,7 +30,6 @@ export interface UpdateCalendarPayload {
   type: CalendarType
   isActive: boolean
   defaultLookbackDays: number
-  pendingBackfillFrom: string | null
 }
 
 export interface ServerDebugStatus {

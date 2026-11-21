@@ -27,7 +27,6 @@ export function AddCalendarForm({
   const [calendarName, setCalendarName] = useState<string>('')
   const [calendarType, setCalendarType] = useState<CalendarType>('DataLog')
   const [defaultLookbackDays, setDefaultLookbackDays] = useState<string>('14')
-  const [pendingBackfillFrom, setPendingBackfillFrom] = useState<string>('')
   const [showOptions, setShowOptions] = useState<boolean>(false)
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -89,13 +88,11 @@ export function AddCalendarForm({
         type: calendarType,
         isActive: true,
         defaultLookbackDays: parsedLookback,
-        pendingBackfillFrom: pendingBackfillFrom.trim() || null,
       })
 
       // Keep `account` so adding multiple calendars for the same account is instant
       setCalendarId('')
       setCalendarName('')
-      setPendingBackfillFrom('')
     } catch (err: unknown) {
       setFormError((err as Error)?.message || 'Nie udało się dodać kalendarza.')
     } finally {
@@ -115,7 +112,7 @@ export function AddCalendarForm({
           className="link-btn"
           onClick={() => setShowOptions((prev) => !prev)}
         >
-          {showOptions ? 'Ukryj opcje dodatkowe' : 'Opcje dodatkowe (nazwa, okno dni, backfill)'}
+          {showOptions ? 'Ukryj opcje dodatkowe' : 'Opcje dodatkowe (nazwa, okno dni)'}
         </button>
       </div>
 
@@ -225,19 +222,6 @@ export function AddCalendarForm({
                 className="input mono"
                 value={defaultLookbackDays}
                 onChange={(e) => setDefaultLookbackDays(e.target.value)}
-              />
-            </div>
-
-            <div className="field">
-              <label htmlFor="backfill-from-input" className="field-label">
-                <span>Jednorazowy backfill od daty</span>
-              </label>
-              <input
-                id="backfill-from-input"
-                type="date"
-                className="input mono"
-                value={pendingBackfillFrom}
-                onChange={(e) => setPendingBackfillFrom(e.target.value)}
               />
             </div>
           </div>

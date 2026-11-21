@@ -63,7 +63,6 @@ export function CalendarList({
       type: item.type ?? 'DataLog',
       isActive: item.isActive,
       defaultLookbackDays: item.defaultLookbackDays,
-      pendingBackfillFrom: item.pendingBackfillFrom,
     })
   }
 
@@ -91,7 +90,6 @@ export function CalendarList({
         calendarId: editDraft.calendarId.trim(),
         calendarName: editDraft.calendarName?.trim() || null,
         defaultLookbackDays: parsedLookback,
-        pendingBackfillFrom: editDraft.pendingBackfillFrom?.trim() || null,
       })
       setEditingId(null)
       setEditDraft(null)
@@ -290,9 +288,6 @@ export function CalendarList({
                           )}
                           <span className="field-hint">
                             Okno: {item.defaultLookbackDays} dni
-                            {item.pendingBackfillFrom
-                              ? ` · Backfill od ${item.pendingBackfillFrom}`
-                              : ''}
                           </span>
                         </div>
                       </td>
@@ -433,21 +428,6 @@ export function CalendarList({
                                   className="input mono"
                                   value={lookbackInput}
                                   onChange={(e) => setLookbackInput(e.target.value)}
-                                />
-                              </div>
-
-                              <div className="field">
-                                <label className="field-label">Backfill od daty</label>
-                                <input
-                                  type="date"
-                                  className="input mono"
-                                  value={editDraft.pendingBackfillFrom ?? ''}
-                                  onChange={(e) =>
-                                    setEditDraft({
-                                      ...editDraft,
-                                      pendingBackfillFrom: e.target.value || null,
-                                    })
-                                  }
                                 />
                               </div>
                             </div>
