@@ -71,7 +71,11 @@ export function formatTimeRange(startIso: string, endIso: string): string {
   if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
     return ''
   }
-  const opts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }
+  const opts: Intl.DateTimeFormatOptions = {
+    timeZone: 'Europe/Warsaw',
+    hour: '2-digit',
+    minute: '2-digit',
+  }
   return `${s.toLocaleTimeString('pl-PL', opts)}–${e.toLocaleTimeString('pl-PL', opts)}`
 }
 

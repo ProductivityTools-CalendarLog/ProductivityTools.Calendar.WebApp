@@ -9,16 +9,51 @@ interface RawEventsPageProps {
   apiUrl: string
 }
 
+const APP_TIME_ZONE = 'Europe/Warsaw'
+
 const dateFormatter = new Intl.DateTimeFormat('pl-PL', {
+  timeZone: APP_TIME_ZONE,
   year: 'numeric',
   month: '2-digit',
   day: '2-digit',
 })
 
 const timeFormatter = new Intl.DateTimeFormat('pl-PL', {
+  timeZone: APP_TIME_ZONE,
   hour: '2-digit',
   minute: '2-digit',
 })
+
+function tryExtractAllDayDatesFromRawJson(
+  rawJson: string | null,
+): { dateLabel: string; days: number } | null {
+  if (!rawJson) return null
+  try {
+    const parsed = JSON.parse(rawJson) as {
+      start?: { date?: string }
+      end?: { date?: string }
+    }
+    const startDate = parsed?.start?.date
+    if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+      return null
+    }
+    const [sy, sm, sd] = startDate.split('-')
+    const dateLabel = `${sd}.${sm}.${sy}`
+
+    const endDate = parsed?.end?.date
+    if (endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      const sUtc = Date.UTC(Number(sy), Number(sm) - 1, Number(sd))
+      const [ey, em, ed] = endDate.split('-')
+      const eUtc = Date.UTC(Number(ey), Number(em) - 1, Number(ed))
+      const days = Math.max(1, Math.round((eUtc - sUtc) / 86400000))
+      return { dateLabel, days }
+    }
+
+    return { dateLabel, days: 1 }
+  } catch {
+    return null
+  }
+}
 
 function formatEventWindow(item: RawCalendarEventItem): { dateLabel: string; timeLabel: string; durationLabel: string } {
   const start = new Date(item.startTime)
@@ -26,9 +61,10 @@ function formatEventWindow(item: RawCalendarEventItem): { dateLabel: string; tim
   const diffMinutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000))
 
   if (item.isAllDay) {
-    const days = Math.max(1, Math.round(diffMinutes / 1440))
+    const fromRaw = tryExtractAllDayDatesFromRawJson(item.rawJson)
+    const days = fromRaw ? fromRaw.days : Math.max(1, Math.round(diffMinutes / 1440))
     return {
-      dateLabel: dateFormatter.format(start),
+      dateLabel: fromRaw ? fromRaw.dateLabel : dateFormatter.format(start),
       timeLabel: 'Cały dzień',
       durationLabel: days === 1 ? '1 dzień' : `${days} dni`,
     }
