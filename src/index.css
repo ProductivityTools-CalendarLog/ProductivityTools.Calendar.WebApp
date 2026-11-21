@@ -302,9 +302,47 @@ select {
 /* Form Elements */
 .form-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(280px, 1.6fr) auto;
+  grid-template-columns: minmax(200px, 1fr) minmax(240px, 1.5fr) minmax(135px, 0.55fr) auto;
   gap: 0.9rem;
   align-items: start;
+}
+
+.cal-type-segmented {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 8px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+}
+
+.cal-type-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.cal-type-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.cal-type-btn.active {
+  background-color: var(--bg-surface);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: var(--shadow-xs);
+}
+
+.cal-type-btn:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
 }
 
 .mutations-form-convert {

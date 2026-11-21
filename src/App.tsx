@@ -6,6 +6,7 @@ import {
   fetchServerStatus,
   listCalendars,
   setCalendarActive,
+  setCalendarType,
   updateCalendar,
 } from './api/calendarsApi'
 import { useAuth } from './auth/useAuth'
@@ -20,6 +21,7 @@ import { TopBar, type AppPage } from './components/TopBar'
 import { getApiBaseUrl, setApiBaseUrl, SYNC_TRIGGERS } from './config/apiConfig'
 import type {
   CalendarItem,
+  CalendarType,
   CreateCalendarPayload,
   ServerDebugStatus,
   UpdateCalendarPayload,
@@ -171,6 +173,13 @@ export function App() {
     setCalendars((prev) => prev.map((c) => (c.calendarSyncStateId === id ? updated : c)))
   }
 
+  const handleChangeType = async (id: number, nextType: CalendarType) => {
+    const token = await getIdToken()
+    const updated = await setCalendarType(apiUrl, token, id, nextType)
+    setCalendars((prev) => prev.map((c) => (c.calendarSyncStateId === id ? updated : c)))
+    showToast(`Ustawiono Type: ${updated.type} dla ${updated.calendarName || updated.calendarId}`)
+  }
+
   const handleUpdate = async (id: number, payload: UpdateCalendarPayload) => {
     const token = await getIdToken()
     const updated = await updateCalendar(apiUrl, token, id, payload)
@@ -293,6 +302,7 @@ export function App() {
               loading={loadingCalendars}
               onRefresh={() => void loadAll()}
               onToggleActive={handleToggleActive}
+              onChangeType={handleChangeType}
               onUpdate={handleUpdate}
               onDelete={handleDelete}
             />

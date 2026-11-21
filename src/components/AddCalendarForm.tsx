@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import type { CreateCalendarPayload } from '../types/calendar'
+import type { CalendarType, CreateCalendarPayload } from '../types/calendar'
 
 const LAST_ACCOUNT_KEY = 'pt_calendar_last_account'
 
@@ -25,6 +25,7 @@ export function AddCalendarForm({
   const [account, setAccount] = useState<string>(initialAccount)
   const [calendarId, setCalendarId] = useState<string>('')
   const [calendarName, setCalendarName] = useState<string>('')
+  const [calendarType, setCalendarType] = useState<CalendarType>('DataLog')
   const [defaultLookbackDays, setDefaultLookbackDays] = useState<string>('14')
   const [pendingBackfillFrom, setPendingBackfillFrom] = useState<string>('')
   const [showOptions, setShowOptions] = useState<boolean>(false)
@@ -85,6 +86,7 @@ export function AddCalendarForm({
         account: trimmedAccount,
         calendarId: trimmedCalId,
         calendarName: calendarName.trim() || null,
+        type: calendarType,
         isActive: true,
         defaultLookbackDays: parsedLookback,
         pendingBackfillFrom: pendingBackfillFrom.trim() || null,
@@ -166,6 +168,21 @@ export function AddCalendarForm({
               onChange={(e) => setCalendarId(e.target.value)}
               required
             />
+          </div>
+
+          <div className="field">
+            <label htmlFor="calendar-type-select" className="field-label">
+              <span>Type</span>
+            </label>
+            <select
+              id="calendar-type-select"
+              className="input mono"
+              value={calendarType}
+              onChange={(e) => setCalendarType(e.target.value as CalendarType)}
+            >
+              <option value="DataLog">DataLog</option>
+              <option value="DataPoint">DataPoint</option>
+            </select>
           </div>
 
           <div className="field" style={{ paddingTop: '1.42rem' }}>

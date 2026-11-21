@@ -1,5 +1,6 @@
 import type {
   CalendarItem,
+  CalendarType,
   CreateCalendarPayload,
   ServerDebugStatus,
   UpdateCalendarPayload,
@@ -115,6 +116,18 @@ export async function setCalendarActive(
   return requestJson<CalendarItem>(baseUrl, `/api/calendars/${id}/active`, token, {
     method: 'PATCH',
     body: JSON.stringify({ isActive }),
+  })
+}
+
+export async function setCalendarType(
+  baseUrl: string,
+  token: string | null,
+  id: number,
+  type: CalendarType,
+): Promise<CalendarItem> {
+  return requestJson<CalendarItem>(baseUrl, `/api/calendars/${id}/type`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({ type }),
   })
 }
 

@@ -1,11 +1,16 @@
 import { Fragment, useState } from 'react'
-import type { CalendarItem, UpdateCalendarPayload } from '../types/calendar'
+import type {
+  CalendarItem,
+  CalendarType,
+  UpdateCalendarPayload,
+} from '../types/calendar'
 
 interface CalendarListProps {
   items: CalendarItem[]
   loading: boolean
   onRefresh: () => void
   onToggleActive: (id: number, nextActive: boolean) => Promise<void>
+  onChangeType: (id: number, nextType: CalendarType) => Promise<void>
   onUpdate: (id: number, payload: UpdateCalendarPayload) => Promise<void>
   onDelete: (id: number) => Promise<void>
 }
@@ -15,6 +20,7 @@ export function CalendarList({
   loading,
   onRefresh,
   onToggleActive,
+  onChangeType,
   onUpdate,
   onDelete,
 }: CalendarListProps) {
@@ -54,6 +60,7 @@ export function CalendarList({
       account: item.account,
       calendarId: item.calendarId,
       calendarName: item.calendarName,
+      type: item.type ?? 'DataLog',
       isActive: item.isActive,
       defaultLookbackDays: item.defaultLookbackDays,
       pendingBackfillFrom: item.pendingBackfillFrom,
@@ -102,6 +109,23 @@ export function CalendarList({
       await onToggleActive(item.calendarSyncStateId, !item.isActive)
     } catch (err: unknown) {
       setRowError((err as Error)?.message || 'Nie udało się zmienić statusu kalendarza.')
+    } finally {
+      setBusyRowId(null)
+    }
+  }
+
+  const handleTypeSelect = async (item: CalendarItem, nextType: CalendarType) => {
+    const currentType: CalendarType = item.type === 'DataPoint' ? 'DataPoint' : 'DataLog'
+    if (currentType === nextType) return
+    setRowError(null)
+    setBusyRowId(item.calendarSyncStateId)
+    try {
+      await onChangeType(item.calendarSyncStateId, nextType)
+      if (editingId === item.calendarSyncStateId && editDraft) {
+        setEditDraft({ ...editDraft, type: nextType })
+      }
+    } catch (err: unknown) {
+      setRowError((err as Error)?.message || 'Nie udało się zmienić typu kalendarza.')
     } finally {
       setBusyRowId(null)
     }
@@ -192,6 +216,7 @@ export function CalendarList({
               <tr>
                 <th>Kalendarz / ID</th>
                 <th>Konto (Account)</th>
+                <th>Type</th>
                 <th>Okno / Status syncu</th>
                 <th>Aktywny</th>
                 <th style={{ textAlign: 'right' }}>Akcje</th>
@@ -201,6 +226,8 @@ export function CalendarList({
               {filteredItems.map((item) => {
                 const isEditing = editingId === item.calendarSyncStateId && editDraft !== null
                 const isBusy = busyRowId === item.calendarSyncStateId
+                const currentType: CalendarType =
+                  item.type === 'DataPoint' ? 'DataPoint' : 'DataLog'
 
                 return (
                   <Fragment key={item.calendarSyncStateId}>
@@ -229,6 +256,27 @@ export function CalendarList({
 
                       <td>
                         <span className="account-badge">{item.account}</span>
+                      </td>
+
+                      <td>
+                        <div
+                          className="cal-type-segmented"
+                          role="group"
+                          aria-label={`Type dla ${item.calendarName || item.calendarId}`}
+                        >
+                          {(['DataLog', 'DataPoint'] as const).map((opt) => (
+                            <button
+                              key={opt}
+                              id={`type-${opt}-${item.calendarSyncStateId}`}
+                              type="button"
+                              className={`cal-type-btn ${currentType === opt ? 'active' : ''}`}
+                              disabled={isBusy}
+                              onClick={() => void handleTypeSelect(item, opt)}
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
                       </td>
 
                       <td>
@@ -320,7 +368,7 @@ export function CalendarList({
 
                     {isEditing && editDraft && (
                       <tr>
-                        <td colSpan={5} style={{ padding: 0 }}>
+                        <td colSpan={6} style={{ padding: 0 }}>
                           <div className="edit-row-box">
                             <div className="edit-grid">
                               <div className="field">
@@ -357,6 +405,23 @@ export function CalendarList({
                                     setEditDraft({ ...editDraft, calendarName: e.target.value })
                                   }
                                 />
+                              </div>
+
+                              <div className="field">
+                                <label className="field-label">Type</label>
+                                <select
+                                  className="input mono"
+                                  value={editDraft.type}
+                                  onChange={(e) =>
+                                    setEditDraft({
+                                      ...editDraft,
+                                      type: e.target.value as CalendarType,
+                                    })
+                                  }
+                                >
+                                  <option value="DataLog">DataLog</option>
+                                  <option value="DataPoint">DataPoint</option>
+                                </select>
                               </div>
 
                               <div className="field">

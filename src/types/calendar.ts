@@ -1,8 +1,11 @@
+export type CalendarType = 'DataPoint' | 'DataLog'
+
 export interface CalendarItem {
   calendarSyncStateId: number
   account: string
   calendarId: string
   calendarName: string | null
+  type: CalendarType
   isActive: boolean
   defaultLookbackDays: number
   lastSyncedDate: string | null
@@ -16,6 +19,7 @@ export interface CreateCalendarPayload {
   account: string
   calendarId: string
   calendarName?: string | null
+  type?: CalendarType
   isActive?: boolean
   defaultLookbackDays?: number
   pendingBackfillFrom?: string | null
@@ -25,6 +29,7 @@ export interface UpdateCalendarPayload {
   account: string
   calendarId: string
   calendarName: string | null
+  type: CalendarType
   isActive: boolean
   defaultLookbackDays: number
   pendingBackfillFrom: string | null
