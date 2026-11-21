@@ -1,7 +1,13 @@
 import { API_TARGETS } from '../config/apiConfig'
 import type { ServerDebugStatus } from '../types/calendar'
 
-export type AppPage = 'charts' | 'calendars' | 'mutations' | 'categories' | 'events'
+export type AppPage =
+  | 'charts'
+  | 'datapoints'
+  | 'calendars'
+  | 'mutations'
+  | 'categories'
+  | 'events'
 
 interface TopBarProps {
   activePage: AppPage
@@ -42,7 +48,15 @@ export function TopBar({
               className={`topnav-link ${activePage === 'charts' ? 'active' : ''}`}
               onClick={() => onNavigate('charts')}
             >
-              Wykresy
+              Wykresy DataLog
+            </button>
+            <button
+              id="nav-datapoints-tab"
+              type="button"
+              className={`topnav-link ${activePage === 'datapoints' ? 'active' : ''}`}
+              onClick={() => onNavigate('datapoints')}
+            >
+              Wykresy DataPoint
             </button>
             <button
               id="nav-calendars-tab"

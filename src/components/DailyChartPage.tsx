@@ -399,11 +399,11 @@ export function DailyChartPage({
     <>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Wykresy czasu i kategorii</h1>
+          <h1 className="page-title">Wykresy DataLog — czas i kategorie</h1>
           <p className="page-description">
             Zestawienie dzienne oraz tygodniowe (ISO <code>YYYYWW</code>) w godzinach i
-            w ujęciu 100% na podstawie tabeli <code>dbo.CalendarLog</code>. Kliknij
-            dowolny słupek, aby rozwinąć tabelę wydarzeń bezpośrednio pod danym wykresem.
+            w ujęciu 100% dla kalendarzy typu <code>DataLog</code>. Kliknij dowolny słupek,
+            aby rozwinąć tabelę wydarzeń bezpośrednio pod danym wykresem.
           </p>
         </div>
 

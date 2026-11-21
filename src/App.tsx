@@ -14,6 +14,7 @@ import { AddCalendarForm } from './components/AddCalendarForm'
 import { CalendarList } from './components/CalendarList'
 import { CategoriesPage } from './components/CategoriesPage'
 import { DailyChartPage } from './components/DailyChartPage'
+import { DataPointChartsPage } from './components/DataPointChartsPage'
 import { LoginView } from './components/LoginView'
 import { MutationsPage } from './components/MutationsPage'
 import { RawEventsPage } from './components/RawEventsPage'
@@ -28,6 +29,7 @@ import type {
 } from './types/calendar'
 
 function resolvePageFromPath(pathname: string): AppPage {
+  if (pathname.startsWith('/datapoints')) return 'datapoints'
   if (pathname.startsWith('/events')) return 'events'
   if (pathname.startsWith('/mutations')) return 'mutations'
   if (pathname.startsWith('/categories')) return 'categories'
@@ -59,13 +61,15 @@ export function App() {
     const nextPath =
       page === 'charts'
         ? '/charts'
-        : page === 'events'
-          ? '/events'
-          : page === 'mutations'
-            ? '/mutations'
-            : page === 'categories'
-              ? '/categories'
-              : '/calendars'
+        : page === 'datapoints'
+          ? '/datapoints'
+          : page === 'events'
+            ? '/events'
+            : page === 'mutations'
+              ? '/mutations'
+              : page === 'categories'
+                ? '/categories'
+                : '/calendars'
     if (window.location.pathname !== nextPath) {
       window.history.pushState(null, '', nextPath)
     }
@@ -227,6 +231,13 @@ export function App() {
             calendars={calendars}
             signedInEmail={user.email}
             onNavigateToCategories={() => handleNavigate('categories')}
+          />
+        ) : activePage === 'datapoints' ? (
+          <DataPointChartsPage
+            apiUrl={apiUrl}
+            calendars={calendars}
+            signedInEmail={user.email}
+            onNavigateToCalendars={() => handleNavigate('calendars')}
           />
         ) : activePage === 'events' ? (
           <RawEventsPage apiUrl={apiUrl} />
