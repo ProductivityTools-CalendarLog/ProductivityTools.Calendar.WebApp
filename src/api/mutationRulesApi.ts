@@ -1,8 +1,10 @@
 import type {
   CalendarConvertRuleItem,
   CalendarTitleRenameRuleItem,
+  CalendarValueRenameRuleItem,
   UpsertConvertRulePayload,
   UpsertTitleRenameRulePayload,
+  UpsertValueRenameRulePayload,
 } from '../types/mutationRule'
 import { requestJson } from './calendarsApi'
 
@@ -114,6 +116,67 @@ export async function deleteTitleRenameRule(
   id: number,
 ): Promise<void> {
   return requestJson<void>(baseUrl, `/api/mutation-rules/title-rename/${id}`, token, {
+    method: 'DELETE',
+  })
+}
+
+export async function listValueRenameRules(
+  baseUrl: string,
+  token: string | null,
+  account?: string,
+  calendarId?: string,
+): Promise<CalendarValueRenameRuleItem[]> {
+  const params = new URLSearchParams()
+  if (account) params.set('account', account)
+  if (calendarId) params.set('calendarId', calendarId)
+  const qs = params.toString()
+
+  return requestJson<CalendarValueRenameRuleItem[]>(
+    baseUrl,
+    `/api/mutation-rules/value-rename${qs ? `?${qs}` : ''}`,
+    token,
+  )
+}
+
+export async function upsertValueRenameRule(
+  baseUrl: string,
+  token: string | null,
+  payload: UpsertValueRenameRulePayload,
+): Promise<CalendarValueRenameRuleItem> {
+  return requestJson<CalendarValueRenameRuleItem>(
+    baseUrl,
+    '/api/mutation-rules/value-rename',
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export async function updateValueRenameRule(
+  baseUrl: string,
+  token: string | null,
+  id: number,
+  payload: UpsertValueRenameRulePayload,
+): Promise<CalendarValueRenameRuleItem> {
+  return requestJson<CalendarValueRenameRuleItem>(
+    baseUrl,
+    `/api/mutation-rules/value-rename/${id}`,
+    token,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export async function deleteValueRenameRule(
+  baseUrl: string,
+  token: string | null,
+  id: number,
+): Promise<void> {
+  return requestJson<void>(baseUrl, `/api/mutation-rules/value-rename/${id}`, token, {
     method: 'DELETE',
   })
 }

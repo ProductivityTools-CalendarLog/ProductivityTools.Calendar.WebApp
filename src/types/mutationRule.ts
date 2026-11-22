@@ -33,3 +33,24 @@ export interface UpsertTitleRenameRulePayload {
   targetPrefix: string
   isActive: boolean
 }
+
+export interface CalendarValueRenameRuleItem {
+  calendarValueRenameRuleId: number
+  account: string
+  calendarId: string
+  categoryPrefix: string
+  keySuffix: string
+  targetSuffix: string
+  isActive: boolean
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+
+export interface UpsertValueRenameRulePayload {
+  account: string
+  calendarId: string
+  categoryPrefix: string
+  keySuffix: string
+  targetSuffix: string
+  isActive: boolean
+}

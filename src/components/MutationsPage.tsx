@@ -3,20 +3,26 @@ import { ApiError } from '../api/calendarsApi'
 import {
   deleteConvertRule,
   deleteTitleRenameRule,
+  deleteValueRenameRule,
   listConvertRules,
   listTitleRenameRules,
+  listValueRenameRules,
   updateConvertRule,
   updateTitleRenameRule,
+  updateValueRenameRule,
   upsertConvertRule,
   upsertTitleRenameRule,
+  upsertValueRenameRule,
 } from '../api/mutationRulesApi'
 import { useAuth } from '../auth/useAuth'
 import type { CalendarItem } from '../types/calendar'
 import type {
   CalendarConvertRuleItem,
   CalendarTitleRenameRuleItem,
+  CalendarValueRenameRuleItem,
   UpsertConvertRulePayload,
   UpsertTitleRenameRulePayload,
+  UpsertValueRenameRulePayload,
 } from '../types/mutationRule'
 
 const LAST_ACCOUNT_KEY = 'pt_calendar_last_account'
@@ -40,6 +46,7 @@ export function MutationsPage({ apiUrl, calendars, signedInEmail }: MutationsPag
 
   const [convertRules, setConvertRules] = useState<CalendarConvertRuleItem[]>([])
   const [renameRules, setRenameRules] = useState<CalendarTitleRenameRuleItem[]>([])
+  const [valueRenameRules, setValueRenameRules] = useState<CalendarValueRenameRuleItem[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -71,6 +78,21 @@ export function MutationsPage({ apiUrl, calendars, signedInEmail }: MutationsPag
   const [confirmDeleteRenameId, setConfirmDeleteRenameId] = useState<number | null>(null)
   const [busyRenameId, setBusyRenameId] = useState<number | null>(null)
 
+  // Value rename rule form (CategoryPrefix: KeySuffix -> CategoryPrefix: TargetSuffix)
+  const [valAccount, setValAccount] = useState<string>(initialAccount)
+  const [valCalendarId, setValCalendarId] = useState<string>('*')
+  const [valCategoryPrefix, setValCategoryPrefix] = useState<string>('*')
+  const [valKeySuffix, setValKeySuffix] = useState<string>('')
+  const [valTargetSuffix, setValTargetSuffix] = useState<string>('')
+  const [valSubmitting, setValSubmitting] = useState<boolean>(false)
+
+  // Value rename inline edit / delete
+  const [editingValueRenameId, setEditingValueRenameId] = useState<number | null>(null)
+  const [editValueRenameDraft, setEditValueRenameDraft] =
+    useState<UpsertValueRenameRulePayload | null>(null)
+  const [confirmDeleteValueRenameId, setConfirmDeleteValueRenameId] = useState<number | null>(null)
+  const [busyValueRenameId, setBusyValueRenameId] = useState<number | null>(null)
+
   const calendarNameMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const cal of calendars) {
@@ -94,11 +116,12 @@ export function MutationsPage({ apiUrl, calendars, signedInEmail }: MutationsPag
     for (const c of calendars) if (c.account.trim()) set.add(c.account.trim())
     for (const r of convertRules) if (r.account.trim()) set.add(r.account.trim())
     for (const r of renameRules) if (r.account.trim()) set.add(r.account.trim())
+    for (const r of valueRenameRules) if (r.account.trim()) set.add(r.account.trim())
     if (signedInEmail) set.add(signedInEmail)
     set.add('pwujczyk@google.com')
     set.add('pwujczyk@gmail.com')
     return Array.from(set)
-  }, [calendars, convertRules, renameRules, signedInEmail])
+  }, [calendars, convertRules, renameRules, valueRenameRules, signedInEmail])
 
   const calendarsForConvertAccount = useMemo(
     () => calendars.filter((c) => !convAccount.trim() || c.account === convAccount.trim()),
@@ -109,6 +132,29 @@ export function MutationsPage({ apiUrl, calendars, signedInEmail }: MutationsPag
     () => calendars.filter((c) => !renAccount.trim() || c.account === renAccount.trim()),
     [calendars, renAccount],
   )
+
+  const calendarsForValueRenameAccount = useMemo(
+    () => calendars.filter((c) => !valAccount.trim() || c.account === valAccount.trim()),
+    [calendars, valAccount],
+  )
+
+  const suggestedCategoryPrefixes = useMemo(() => {
+    const set = new Set<string>()
+    const trimmedAcc = valAccount.trim()
+    for (const r of renameRules) {
+      if (!trimmedAcc || r.account === trimmedAcc) {
+        if (r.targetPrefix.trim()) set.add(r.targetPrefix.trim())
+      }
+    }
+    for (const r of valueRenameRules) {
+      if (!trimmedAcc || r.account === trimmedAcc) {
+        if (r.categoryPrefix.trim() && r.categoryPrefix.trim() !== '*') {
+          set.add(r.categoryPrefix.trim())
+        }
+      }
+    }
+    return Array.from(set).sort()
+  }, [renameRules, valueRenameRules, valAccount])
 
   const showNotice = (msg: string) => {
     setNotice(msg)
@@ -122,12 +168,14 @@ export function MutationsPage({ apiUrl, calendars, signedInEmail }: MutationsPag
     setError(null)
     try {
       const token = await getIdToken()
-      const [conv, ren] = await Promise.all([
+      const [conv, ren, valRen] = await Promise.all([
         listConvertRules(apiUrl, token),
         listTitleRenameRules(apiUrl, token),
+        listValueRenameRules(apiUrl, token),
       ])
       setConvertRules(conv)
       setRenameRules(ren)
+      setValueRenameRules(valRen)
     } catch (err: unknown) {
       if (err instanceof ApiError && err.status === 401) {
         await signOut()
@@ -147,13 +195,15 @@ export function MutationsPage({ apiUrl, calendars, signedInEmail }: MutationsPag
       setError(null)
       try {
         const token = await getIdToken()
-        const [conv, ren] = await Promise.all([
+        const [conv, ren, valRen] = await Promise.all([
           listConvertRules(apiUrl, token),
           listTitleRenameRules(apiUrl, token),
+          listValueRenameRules(apiUrl, token),
         ])
         if (!cancelled) {
           setConvertRules(conv)
           setRenameRules(ren)
+          setValueRenameRules(valRen)
         }
       } catch (err: unknown) {
         if (cancelled) return
@@ -179,8 +229,9 @@ export function MutationsPage({ apiUrl, calendars, signedInEmail }: MutationsPag
     const set = new Set<string>()
     for (const r of convertRules) set.add(r.account)
     for (const r of renameRules) set.add(r.account)
+    for (const r of valueRenameRules) set.add(r.account)
     return Array.from(set).sort()
-  }, [convertRules, renameRules])
+  }, [convertRules, renameRules, valueRenameRules])
 
   const filteredConvertRules = useMemo(
     () =>
@@ -196,6 +247,14 @@ export function MutationsPage({ apiUrl, calendars, signedInEmail }: MutationsPag
         ? renameRules
         : renameRules.filter((r) => r.account === accountFilter),
     [accountFilter, renameRules],
+  )
+
+  const filteredValueRenameRules = useMemo(
+    () =>
+      accountFilter === 'ALL'
+        ? valueRenameRules
+        : valueRenameRules.filter((r) => r.account === accountFilter),
+    [accountFilter, valueRenameRules],
   )
 
   // --- Convert Rule Handlers ---
@@ -405,6 +464,129 @@ export function MutationsPage({ apiUrl, calendars, signedInEmail }: MutationsPag
       setError((err as Error)?.message || 'Nie udało się usunąć reguły nazwy.')
     } finally {
       setBusyRenameId(null)
+    }
+  }
+
+  // --- Value Rename Rule Handlers (after ':') ---
+  const normalizePrefixScope = (raw: string): string => {
+    const cleaned = raw.trim().replace(/:+$/, '').trim()
+    return cleaned.length === 0 ? '*' : cleaned
+  }
+
+  const handleAddValueRenameRule = async (e: FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    const account = valAccount.trim()
+    const calendarId = valCalendarId.trim()
+    const categoryPrefix = normalizePrefixScope(valCategoryPrefix)
+    const keySuffix = valKeySuffix.trim().replace(/^:+/, '').trim()
+    const targetSuffix = valTargetSuffix.trim().replace(/^:+/, '').trim()
+
+    if (!account || !calendarId || !keySuffix || !targetSuffix) {
+      setError('Uzupełnij konto, kalendarz, skrót po : oraz docelową wartość po :.')
+      return
+    }
+
+    setValSubmitting(true)
+    try {
+      const token = await getIdToken()
+      const saved = await upsertValueRenameRule(apiUrl, token, {
+        account,
+        calendarId,
+        categoryPrefix,
+        keySuffix,
+        targetSuffix,
+        isActive: true,
+      })
+      setValueRenameRules((prev) => {
+        const without = prev.filter(
+          (r) => r.calendarValueRenameRuleId !== saved.calendarValueRenameRuleId,
+        )
+        return [...without, saved].sort(
+          (a, b) =>
+            a.account.localeCompare(b.account) ||
+            a.calendarId.localeCompare(b.calendarId) ||
+            a.categoryPrefix.localeCompare(b.categoryPrefix) ||
+            a.keySuffix.localeCompare(b.keySuffix),
+        )
+      })
+      setValKeySuffix('')
+      setValTargetSuffix('')
+      showNotice(
+        `Zapisano regułę wartości po : "${saved.categoryPrefix}: ${saved.keySuffix}" → "${saved.targetSuffix}"`,
+      )
+    } catch (err: unknown) {
+      setError((err as Error)?.message || 'Nie udało się zapisać reguły wartości po :.')
+    } finally {
+      setValSubmitting(false)
+    }
+  }
+
+  const handleToggleValueRename = async (rule: CalendarValueRenameRuleItem) => {
+    setBusyValueRenameId(rule.calendarValueRenameRuleId)
+    setError(null)
+    try {
+      const token = await getIdToken()
+      const updated = await updateValueRenameRule(apiUrl, token, rule.calendarValueRenameRuleId, {
+        account: rule.account,
+        calendarId: rule.calendarId,
+        categoryPrefix: rule.categoryPrefix,
+        keySuffix: rule.keySuffix,
+        targetSuffix: rule.targetSuffix,
+        isActive: !rule.isActive,
+      })
+      setValueRenameRules((prev) =>
+        prev.map((r) =>
+          r.calendarValueRenameRuleId === updated.calendarValueRenameRuleId ? updated : r,
+        ),
+      )
+    } catch (err: unknown) {
+      setError((err as Error)?.message || 'Nie udało się zmienić statusu reguły.')
+    } finally {
+      setBusyValueRenameId(null)
+    }
+  }
+
+  const handleSaveValueRenameEdit = async (id: number) => {
+    if (!editValueRenameDraft) return
+    setBusyValueRenameId(id)
+    setError(null)
+    try {
+      const token = await getIdToken()
+      const updated = await updateValueRenameRule(apiUrl, token, id, {
+        account: editValueRenameDraft.account.trim(),
+        calendarId: editValueRenameDraft.calendarId.trim(),
+        categoryPrefix: normalizePrefixScope(editValueRenameDraft.categoryPrefix),
+        keySuffix: editValueRenameDraft.keySuffix.trim().replace(/^:+/, '').trim(),
+        targetSuffix: editValueRenameDraft.targetSuffix.trim().replace(/^:+/, '').trim(),
+        isActive: editValueRenameDraft.isActive,
+      })
+      setValueRenameRules((prev) =>
+        prev.map((r) => (r.calendarValueRenameRuleId === id ? updated : r)),
+      )
+      setEditingValueRenameId(null)
+      setEditValueRenameDraft(null)
+      showNotice('Zaktualizowano regułę wartości po :.')
+    } catch (err: unknown) {
+      setError((err as Error)?.message || 'Nie udało się zaktualizować reguły wartości po :.')
+    } finally {
+      setBusyValueRenameId(null)
+    }
+  }
+
+  const handleDeleteValueRename = async (id: number) => {
+    setBusyValueRenameId(id)
+    setError(null)
+    try {
+      const token = await getIdToken()
+      await deleteValueRenameRule(apiUrl, token, id)
+      setValueRenameRules((prev) => prev.filter((r) => r.calendarValueRenameRuleId !== id))
+      setConfirmDeleteValueRenameId(null)
+      showNotice('Usunięto regułę wartości po :.')
+    } catch (err: unknown) {
+      setError((err as Error)?.message || 'Nie udało się usunąć reguły wartości po :.')
+    } finally {
+      setBusyValueRenameId(null)
     }
   }
 
@@ -1107,6 +1289,416 @@ export function MutationsPage({ apiUrl, calendars, signedInEmail }: MutationsPag
                                   disabled={isBusy}
                                   onClick={() =>
                                     void handleSaveRenameEdit(rule.calendarTitleRenameRuleId)
+                                  }
+                                >
+                                  {isBusy ? 'Zapisywanie…' : 'Zapisz zmiany'}
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* SECTION 3: after ':' -> RENAME */}
+      <section className="panel" aria-labelledby="value-rename-rules-heading">
+        <div className="panel-header">
+          <div>
+            <h2 id="value-rename-rules-heading" className="panel-title">
+              3. Normalizacja skrótów / wartości w tytule po <code>:</code> (RENAME —{' '}
+              {filteredValueRenameRules.length})
+            </h2>
+            <p className="field-hint" style={{ marginTop: '0.15rem' }}>
+              Np. <code>Sport: b</code> zmieni się na <code>Sport: Basen</code>. Możesz podać
+              konkretny prefiks przed <code>:</code> (np. <code>Sport</code>) albo <code>*</code>{' '}
+              dla dowolnego prefiksu — reguła działa również łącznie z sekcją 1 i 2.
+            </p>
+          </div>
+        </div>
+
+        <form className="panel-body" onSubmit={handleAddValueRenameRule}>
+          <div className="mutations-form-value-rename">
+            <div className="field">
+              <label htmlFor="val-account-input" className="field-label">
+                <span>Konto Google</span>
+              </label>
+              <input
+                id="val-account-input"
+                type="email"
+                className="input mono"
+                placeholder="pwujczyk@google.com"
+                value={valAccount}
+                onChange={(e) => setValAccount(e.target.value)}
+                required
+              />
+              <div className="quick-chips">
+                {suggestedAccounts.map((acc) => (
+                  <button
+                    key={acc}
+                    type="button"
+                    className={`chip ${valAccount.trim() === acc ? 'active' : ''}`}
+                    onClick={() => setValAccount(acc)}
+                  >
+                    {acc}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="field">
+              <label htmlFor="val-calendar-input" className="field-label">
+                <span>Calendar ID (lub * dla wszystkich)</span>
+              </label>
+              <input
+                id="val-calendar-input"
+                type="text"
+                className="input mono"
+                placeholder="* lub ID kalendarza"
+                value={valCalendarId}
+                onChange={(e) => setValCalendarId(e.target.value)}
+                required
+              />
+              <div className="quick-chips">
+                <button
+                  type="button"
+                  className={`chip ${valCalendarId.trim() === '*' ? 'active' : ''}`}
+                  onClick={() => setValCalendarId('*')}
+                >
+                  * (wszystkie)
+                </button>
+                {calendarsForValueRenameAccount.map((cal) => (
+                  <button
+                    key={cal.calendarSyncStateId}
+                    type="button"
+                    className={`chip ${valCalendarId.trim() === cal.calendarId ? 'active' : ''}`}
+                    onClick={() => setValCalendarId(cal.calendarId)}
+                  >
+                    {cal.calendarName || cal.calendarId}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="field">
+              <label htmlFor="val-category-prefix-input" className="field-label">
+                <span>Prefiks przed : (* = dowolny)</span>
+              </label>
+              <input
+                id="val-category-prefix-input"
+                type="text"
+                className="input mono"
+                placeholder="* lub np. Sport"
+                value={valCategoryPrefix}
+                onChange={(e) => setValCategoryPrefix(e.target.value)}
+                required
+              />
+              <div className="quick-chips">
+                <button
+                  type="button"
+                  className={`chip ${normalizePrefixScope(valCategoryPrefix) === '*' ? 'active' : ''}`}
+                  onClick={() => setValCategoryPrefix('*')}
+                >
+                  * (dowolny)
+                </button>
+                {suggestedCategoryPrefixes.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    className={`chip ${normalizePrefixScope(valCategoryPrefix) === cat ? 'active' : ''}`}
+                    onClick={() => setValCategoryPrefix(cat)}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="field">
+              <label htmlFor="val-key-suffix-input" className="field-label">
+                <span>Skrót po :</span>
+              </label>
+              <input
+                id="val-key-suffix-input"
+                type="text"
+                className="input mono"
+                placeholder="np. b"
+                value={valKeySuffix}
+                onChange={(e) => setValKeySuffix(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="val-target-suffix-input" className="field-label">
+                <span>Docelowa wartość po :</span>
+              </label>
+              <input
+                id="val-target-suffix-input"
+                type="text"
+                className="input"
+                placeholder="np. Basen"
+                value={valTargetSuffix}
+                onChange={(e) => setValTargetSuffix(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="field" style={{ paddingTop: '1.42rem' }}>
+              <button
+                id="submit-value-rename-rule-button"
+                type="submit"
+                className="btn btn-primary"
+                disabled={valSubmitting}
+              >
+                {valSubmitting ? 'Zapisywanie…' : '+ Dodaj regułę po :'}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {filteredValueRenameRules.length === 0 ? (
+          <div className="empty-state" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+            Brak skonfigurowanych reguł rozwijania skrótów / wartości po <code>:</code>.
+          </div>
+        ) : (
+          <div className="table-wrap" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+            <table className="cal-table">
+              <thead>
+                <tr>
+                  <th>Mapowanie po :</th>
+                  <th>Prefiks przed :</th>
+                  <th>Kalendarz</th>
+                  <th>Konto</th>
+                  <th>Aktywna</th>
+                  <th style={{ textAlign: 'right' }}>Akcje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredValueRenameRules.map((rule) => {
+                  const isEditing =
+                    editingValueRenameId === rule.calendarValueRenameRuleId &&
+                    editValueRenameDraft !== null
+                  const isBusy = busyValueRenameId === rule.calendarValueRenameRuleId
+                  const resolvedName = resolveCalendarLabel(rule.account, rule.calendarId)
+
+                  return (
+                    <Fragment key={rule.calendarValueRenameRuleId}>
+                      <tr className={!rule.isActive ? 'cal-row-inactive' : undefined}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <code className="cal-id-code">{rule.keySuffix}</code>
+                            <span style={{ color: 'var(--text-muted)' }}>→</span>
+                            <span className="cal-name">{rule.targetSuffix}</span>
+                          </div>
+                        </td>
+
+                        <td>
+                          {rule.categoryPrefix === '*' ? (
+                            <span className="badge badge-neutral">Dowolny (*)</span>
+                          ) : (
+                            <code className="cal-id-code" style={{ fontWeight: 600 }}>
+                              {rule.categoryPrefix}:
+                            </code>
+                          )}
+                        </td>
+
+                        <td>
+                          {resolvedName && <div style={{ fontWeight: 500 }}>{resolvedName}</div>}
+                          {rule.calendarId !== '*' && (
+                            <div className="cal-id-row">
+                              <code className="cal-id-code">{rule.calendarId}</code>
+                            </div>
+                          )}
+                        </td>
+
+                        <td>
+                          <span className="account-badge">{rule.account}</span>
+                        </td>
+
+                        <td>
+                          <label className="switch">
+                            <input
+                              type="checkbox"
+                              checked={rule.isActive}
+                              disabled={isBusy}
+                              onChange={() => void handleToggleValueRename(rule)}
+                            />
+                            <span className="switch-track">
+                              <span className="switch-thumb" />
+                            </span>
+                            <span className="switch-label">
+                              {rule.isActive ? 'Tak' : 'Wyłączona'}
+                            </span>
+                          </label>
+                        </td>
+
+                        <td>
+                          <div className="row-actions">
+                            {confirmDeleteValueRenameId === rule.calendarValueRenameRuleId ? (
+                              <>
+                                <button
+                                  type="button"
+                                  className="btn btn-danger"
+                                  disabled={isBusy}
+                                  onClick={() =>
+                                    void handleDeleteValueRename(rule.calendarValueRenameRuleId)
+                                  }
+                                >
+                                  Potwierdź
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  disabled={isBusy}
+                                  onClick={() => setConfirmDeleteValueRenameId(null)}
+                                >
+                                  Anuluj
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  disabled={isBusy}
+                                  onClick={() => {
+                                    if (isEditing) {
+                                      setEditingValueRenameId(null)
+                                      setEditValueRenameDraft(null)
+                                    } else {
+                                      setConfirmDeleteValueRenameId(null)
+                                      setEditingValueRenameId(rule.calendarValueRenameRuleId)
+                                      setEditValueRenameDraft({
+                                        account: rule.account,
+                                        calendarId: rule.calendarId,
+                                        categoryPrefix: rule.categoryPrefix,
+                                        keySuffix: rule.keySuffix,
+                                        targetSuffix: rule.targetSuffix,
+                                        isActive: rule.isActive,
+                                      })
+                                    }
+                                  }}
+                                >
+                                  {isEditing ? 'Zamknij' : 'Edytuj'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  disabled={isBusy}
+                                  onClick={() => {
+                                    setEditingValueRenameId(null)
+                                    setConfirmDeleteValueRenameId(rule.calendarValueRenameRuleId)
+                                  }}
+                                >
+                                  Usuń
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+
+                      {isEditing && editValueRenameDraft && (
+                        <tr>
+                          <td colSpan={6} style={{ padding: 0 }}>
+                            <div className="edit-row-box">
+                              <div className="edit-grid">
+                                <div className="field">
+                                  <label className="field-label">Konto</label>
+                                  <input
+                                    type="email"
+                                    className="input mono"
+                                    value={editValueRenameDraft.account}
+                                    onChange={(e) =>
+                                      setEditValueRenameDraft({
+                                        ...editValueRenameDraft,
+                                        account: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div className="field">
+                                  <label className="field-label">Calendar ID (lub *)</label>
+                                  <input
+                                    type="text"
+                                    className="input mono"
+                                    value={editValueRenameDraft.calendarId}
+                                    onChange={(e) =>
+                                      setEditValueRenameDraft({
+                                        ...editValueRenameDraft,
+                                        calendarId: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div className="field">
+                                  <label className="field-label">Prefiks przed : (lub *)</label>
+                                  <input
+                                    type="text"
+                                    className="input mono"
+                                    value={editValueRenameDraft.categoryPrefix}
+                                    onChange={(e) =>
+                                      setEditValueRenameDraft({
+                                        ...editValueRenameDraft,
+                                        categoryPrefix: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div className="field">
+                                  <label className="field-label">Skrót po :</label>
+                                  <input
+                                    type="text"
+                                    className="input mono"
+                                    value={editValueRenameDraft.keySuffix}
+                                    onChange={(e) =>
+                                      setEditValueRenameDraft({
+                                        ...editValueRenameDraft,
+                                        keySuffix: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div className="field">
+                                  <label className="field-label">Docelowa wartość po :</label>
+                                  <input
+                                    type="text"
+                                    className="input"
+                                    value={editValueRenameDraft.targetSuffix}
+                                    onChange={(e) =>
+                                      setEditValueRenameDraft({
+                                        ...editValueRenameDraft,
+                                        targetSuffix: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                              </div>
+                              <div className="edit-actions">
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  disabled={isBusy}
+                                  onClick={() => {
+                                    setEditingValueRenameId(null)
+                                    setEditValueRenameDraft(null)
+                                  }}
+                                >
+                                  Anuluj
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-primary btn-sm"
+                                  disabled={isBusy}
+                                  onClick={() =>
+                                    void handleSaveValueRenameEdit(rule.calendarValueRenameRuleId)
                                   }
                                 >
                                   {isBusy ? 'Zapisywanie…' : 'Zapisz zmiany'}
