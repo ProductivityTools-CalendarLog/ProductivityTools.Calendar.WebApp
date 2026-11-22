@@ -108,16 +108,6 @@ export function DataPointChartsPage({
     return Array.from(set).sort()
   }, [calendars, signedInEmail])
 
-  const distinctMonthsCount = useMemo(() => {
-    const set = new Set<string>()
-    for (const cat of summary.categories) {
-      for (const m of cat.months) {
-        set.add(m.month)
-      }
-    }
-    return set.size
-  }, [summary.categories])
-
   const effectiveSelectedCategory = useMemo(() => {
     if (selectedCategory === 'ALL') return 'ALL'
     return summary.categories.some((c) => c.category === selectedCategory)
@@ -139,13 +129,6 @@ export function DataPointChartsPage({
 
   const maxMonths =
     monthsPreset === '12m' ? 12 : monthsPreset === '24m' ? 24 : 240
-
-  const calendarLabelList =
-    summary.dataPointCalendars.length > 0
-      ? summary.dataPointCalendars.join(', ')
-      : dataPointCalendarsConfigured
-          .map((c) => c.calendarName || c.calendarId)
-          .join(', ') || 'Brak (ustaw Type = DataPoint)'
 
   return (
     <>
@@ -204,31 +187,6 @@ export function DataPointChartsPage({
           </button>
         </div>
       )}
-
-      {/* KPI Summary Strip */}
-      <div className="chart-kpi-grid">
-        <div className="chart-kpi-card">
-          <span className="chart-kpi-label">Kategorie DataPoint</span>
-          <span className="chart-kpi-value">{summary.categories.length}</span>
-        </div>
-        <div className="chart-kpi-card">
-          <span className="chart-kpi-label">Suma wystąpień (Count)</span>
-          <span className="chart-kpi-value">{summary.totalEvents}</span>
-        </div>
-        <div className="chart-kpi-card">
-          <span className="chart-kpi-label">Aktywne miesiące</span>
-          <span className="chart-kpi-value">{distinctMonthsCount} mies.</span>
-        </div>
-        <div className="chart-kpi-card">
-          <span className="chart-kpi-label">Kalendarze DataPoint</span>
-          <span
-            className="chart-kpi-value"
-            style={{ fontSize: '0.95rem', fontWeight: 600 }}
-          >
-            {calendarLabelList}
-          </span>
-        </div>
-      </div>
 
       {/* Controls Toolbar */}
       <section className="panel" aria-label="Filtry wykresów DataPoint">
