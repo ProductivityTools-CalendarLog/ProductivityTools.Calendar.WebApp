@@ -18,6 +18,7 @@ import { DataPointChartsPage } from './components/DataPointChartsPage'
 import { LoginView } from './components/LoginView'
 import { MutationsPage } from './components/MutationsPage'
 import { RawEventsPage } from './components/RawEventsPage'
+import { TechnicalBar } from './components/TechnicalBar'
 import { TopBar, type AppPage } from './components/TopBar'
 import { getApiBaseUrl, setApiBaseUrl, SYNC_TRIGGERS } from './config/apiConfig'
 import type {
@@ -81,6 +82,13 @@ export function App() {
     setServerStatus(null)
     setApiUrlState(nextUrl)
   }
+
+  const refreshServerStatus = useCallback(() => {
+    setServerStatus(null)
+    void fetchServerStatus(apiUrl).then((status) => {
+      setServerStatus(status)
+    })
+  }, [apiUrl])
 
   useEffect(() => {
     let cancelled = false
@@ -214,15 +222,20 @@ export function App() {
 
   return (
     <div className="app-shell">
-      <TopBar
-        activePage={activePage}
-        onNavigate={handleNavigate}
-        userEmail={user.email}
-        apiUrl={apiUrl}
-        onChangeApiUrl={handleApiUrlChange}
-        serverStatus={serverStatus}
-        onSignOut={() => void handleSignOut()}
-      />
+      <div className="header-stack">
+        <TechnicalBar
+          userEmail={user.email}
+          apiUrl={apiUrl}
+          onChangeApiUrl={handleApiUrlChange}
+          serverStatus={serverStatus}
+          onRefreshServerStatus={refreshServerStatus}
+        />
+        <TopBar
+          activePage={activePage}
+          onNavigate={handleNavigate}
+          onSignOut={() => void handleSignOut()}
+        />
+      </div>
 
       <main className="main-container">
         {activePage === 'charts' ? (

@@ -1,3 +1,4 @@
+import { statusService } from '../services/statusService'
 import type {
   CalendarItem,
   CalendarType,
@@ -41,6 +42,10 @@ export async function requestJson<T>(
   token: string | null,
   init: RequestInit = {},
 ): Promise<T> {
+  const method = (init.method || 'GET').toUpperCase()
+  const shortPath = path.length > 56 ? `${path.slice(0, 53)}…` : path
+  const opId = statusService.start(`${method} ${shortPath}`)
+
   const headers = new Headers(init.headers)
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
@@ -49,12 +54,19 @@ export async function requestJson<T>(
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    headers,
-  })
+  let response: Response
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers,
+    })
+  } catch (err) {
+    statusService.error(opId, `${method} ${shortPath} (network error)`)
+    throw err
+  }
 
   if (!response.ok) {
+    statusService.error(opId, `${method} ${shortPath} (${response.status})`)
     if (response.status === 401) {
       throw new ApiError(401, 'Sesja wygasła lub brak autoryzacji (401). Zaloguj się ponownie.')
     }
@@ -67,6 +79,8 @@ export async function requestJson<T>(
     const details = await readErrorMessage(response)
     throw new ApiError(response.status, details)
   }
+
+  statusService.success(opId, `${method} ${shortPath}`)
 
   if (response.status === 204) {
     return undefined as T
@@ -142,13 +156,16 @@ export async function deleteCalendar(
 }
 
 export async function fetchServerStatus(baseUrl: string): Promise<ServerDebugStatus> {
+  const opId = statusService.start('Checking server & DB status')
   try {
-    const [appResp, serverResp] = await Promise.all([
+    const [appResp, serverResp, dbResp] = await Promise.all([
       fetch(`${baseUrl}/api/debug/appname`),
       fetch(`${baseUrl}/api/debug/servername`),
+      fetch(`${baseUrl}/api/debug/databasename`).catch(() => null),
     ])
 
     if (!appResp.ok) {
+      statusService.error(opId, `API offline (${appResp.status})`)
       return { online: false }
     }
 
@@ -156,9 +173,16 @@ export async function fetchServerStatus(baseUrl: string): Promise<ServerDebugSta
     const serverName = serverResp.ok
       ? (await serverResp.text()).replace(/^"|"$/g, '').trim()
       : undefined
+    const databaseName =
+      dbResp && dbResp.ok
+        ? (await dbResp.text()).replace(/^"|"$/g, '').trim()
+        : undefined
 
-    return { online: true, appName, serverName }
+    const summary = [serverName, databaseName].filter(Boolean).join(' / ') || appName || 'Online'
+    statusService.success(opId, `Connected: ${summary}`)
+    return { online: true, appName, serverName, databaseName }
   } catch {
+    statusService.error(opId, 'API unreachable')
     return { online: false }
   }
 }

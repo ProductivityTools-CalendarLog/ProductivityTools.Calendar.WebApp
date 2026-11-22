@@ -4,9 +4,11 @@ import { createContext, useContext } from 'react'
 export interface AuthContextValue {
   user: User | null
   loading: boolean
+  tokenRefreshTime: Date | null
   signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
   getIdToken: () => Promise<string | null>
+  refreshToken: () => Promise<string | null>
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)

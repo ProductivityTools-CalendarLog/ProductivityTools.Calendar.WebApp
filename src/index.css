@@ -82,12 +82,320 @@ select {
   flex-direction: column;
 }
 
-/* Top Navigation Bar */
-.topbar {
+/* Top Technical Bar (PTJournal style) + Sticky Header Stack */
+.header-stack {
   position: sticky;
   top: 0;
-  z-index: 20;
-  background-color: hsla(0, 0%, 100%, 0.92);
+  z-index: 30;
+}
+
+.techbar {
+  background-color: #f5f6f8;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 2px 16px;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #616161;
+}
+
+.techbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.techbar-strong {
+  color: #444444;
+  font-weight: 600;
+}
+
+.techbar-strong.mono {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.techbar-muted {
+  color: #777777;
+}
+
+.techbar-divider {
+  width: 1px;
+  height: 12px;
+  background-color: #d0d0d0;
+  margin: 0 3px;
+  flex-shrink: 0;
+}
+
+.techbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.techbar-dot-online {
+  background-color: #4caf50;
+}
+
+.techbar-dot-offline {
+  background-color: #d32f2f;
+}
+
+.techbar-dot-neutral {
+  background-color: #9e9e9e;
+}
+
+.techbar-inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.techbar-select {
+  height: 19px;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  color: #334155;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+
+.techbar-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+.techbar-db {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.techbar-db-offline {
+  color: #c62828;
+  font-weight: 700;
+}
+
+.techbar-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.techbar-spinner {
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(25, 118, 210, 0.25);
+  border-top-color: #1976d2;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: techbar-spin 0.85s linear infinite;
+}
+
+.techbar-spin {
+  animation: techbar-spin 1s linear infinite;
+}
+
+@keyframes techbar-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.techbar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #777777;
+  padding: 2px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.techbar-icon-btn:hover:not(:disabled) {
+  color: #1976d2;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.techbar-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.techbar-popover-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.techbar-status-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: transparent;
+  padding: 1px 5px;
+  border-radius: 3px;
+  cursor: pointer;
+  max-width: 380px;
+  font-size: 11px;
+  transition: background-color 140ms ease;
+}
+
+.techbar-status-trigger:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.techbar-status-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.techbar-msg-default {
+  color: #777777;
+}
+
+.techbar-msg-pending {
+  color: #1565c0;
+}
+
+.techbar-msg-error {
+  color: #c62828;
+}
+
+.techbar-msg-warn {
+  color: #e65100;
+}
+
+.techbar-popover {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 100;
+  width: min(520px, calc(100vw - 24px));
+  max-height: 380px;
+  background-color: #ffffff;
+  border: 1px solid #d8dee4;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.techbar-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background-color: #f5f6f8;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.techbar-popover-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.techbar-popover-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333333;
+}
+
+.techbar-popover-count {
+  font-size: 11px;
+  color: #888888;
+}
+
+.techbar-popover-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.techbar-popover-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background-color: #fafafa;
+}
+
+.techbar-popover-empty {
+  font-size: 12px;
+  color: #999999;
+  padding: 16px;
+  text-align: center;
+}
+
+.techbar-log-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  background-color: #ffffff;
+  border-radius: 4px;
+  border: 1px solid #eeeeee;
+  font-size: 11px;
+  gap: 8px;
+}
+
+.techbar-log-left {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  flex: 1;
+}
+
+.techbar-log-time {
+  color: #888888;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  flex-shrink: 0;
+}
+
+.techbar-log-msg {
+  color: #111827;
+  word-break: break-word;
+}
+
+.techbar-log-dur {
+  font-size: 10px;
+  color: #666666;
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  background-color: #f0f0f0;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* Top Navigation Bar */
+.topbar {
+  background-color: hsla(0, 0%, 100%, 0.94);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-subtle);
 }

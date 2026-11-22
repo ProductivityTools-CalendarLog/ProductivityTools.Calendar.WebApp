@@ -1,6 +1,3 @@
-import { API_TARGETS } from '../config/apiConfig'
-import type { ServerDebugStatus } from '../types/calendar'
-
 export type AppPage =
   | 'charts'
   | 'datapoints'
@@ -12,22 +9,10 @@ export type AppPage =
 interface TopBarProps {
   activePage: AppPage
   onNavigate: (page: AppPage) => void
-  userEmail: string | null
-  apiUrl: string
-  onChangeApiUrl: (nextUrl: string) => void
-  serverStatus: ServerDebugStatus | null
   onSignOut: () => void
 }
 
-export function TopBar({
-  activePage,
-  onNavigate,
-  userEmail,
-  apiUrl,
-  onChangeApiUrl,
-  serverStatus,
-  onSignOut,
-}: TopBarProps) {
+export function TopBar({ activePage, onNavigate, onSignOut }: TopBarProps) {
   return (
     <header className="topbar">
       <div className="topbar-inner">
@@ -94,48 +79,14 @@ export function TopBar({
         </div>
 
         <div className="topbar-right">
-          <div className="server-status" title={apiUrl}>
-            <span
-              className={`status-dot ${
-                serverStatus === null ? '' : serverStatus.online ? 'online' : 'offline'
-              }`}
-            />
-            <span>
-              {serverStatus === null
-                ? 'Łączenie…'
-                : serverStatus.online
-                  ? serverStatus.serverName || serverStatus.appName || 'API Online'
-                  : 'API Offline'}
-            </span>
-          </div>
-
-          <select
-            id="api-target-select"
-            aria-label="Adres serwera API"
-            className="api-select"
-            value={apiUrl}
-            onChange={(e) => onChangeApiUrl(e.target.value)}
+          <button
+            id="sign-out-button"
+            type="button"
+            className="btn btn-ghost"
+            onClick={onSignOut}
           >
-            {API_TARGETS.map((opt) => (
-              <option key={opt.url} value={opt.url}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-
-          {userEmail && (
-            <>
-              <span className="user-chip">{userEmail}</span>
-              <button
-                id="sign-out-button"
-                type="button"
-                className="btn btn-ghost"
-                onClick={onSignOut}
-              >
-                Wyloguj
-              </button>
-            </>
-          )}
+            Wyloguj
+          </button>
         </div>
       </div>
     </header>

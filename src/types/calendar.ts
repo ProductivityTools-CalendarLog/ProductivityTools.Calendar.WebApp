@@ -36,4 +36,5 @@ export interface ServerDebugStatus {
   online: boolean
   appName?: string
   serverName?: string
+  databaseName?: string
 }
