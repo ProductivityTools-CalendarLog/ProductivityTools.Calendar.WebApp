@@ -15,11 +15,8 @@ import type {
 } from '../types/categoryRule'
 import {
   buildOrderedLegendCategories,
-  formatCategoryLabel,
   formatDayWithWeekday,
   formatWeekTooltipTitle,
-  getCategoryColor,
-  normalizeLooseCategoryKey,
   toIsoDateString,
   type ChartBucketInput,
 } from '../utils/chartCategories'
@@ -333,45 +330,6 @@ export function DailyChartPage({
     }))
   }, [sortDirection, weeklySummary.weeks])
 
-  const hiddenLooseKeys = useMemo(() => {
-    const set = new Set<string>()
-    for (const c of hiddenCategories) {
-      set.add(normalizeLooseCategoryKey(c))
-    }
-    return set
-  }, [hiddenCategories])
-
-  const kpiStats = useMemo(() => {
-    const daysCount = dailySummary.days.length
-    const weeksCount = weeklySummary.weeks.length
-    const catTotals = new Map<string, number>()
-    let visibleTotalHours = 0
-
-    for (const d of dailySummary.days) {
-      for (const [cat, hrs] of Object.entries(d.byCategory)) {
-        if (hiddenLooseKeys.has(normalizeLooseCategoryKey(cat))) continue
-        visibleTotalHours += hrs
-        catTotals.set(cat, (catTotals.get(cat) ?? 0) + hrs)
-      }
-    }
-
-    let topCategory: { name: string; hours: number } | null = null
-    for (const [cat, hrs] of catTotals.entries()) {
-      if (!topCategory || hrs > topCategory.hours) {
-        topCategory = { name: cat, hours: hrs }
-      }
-    }
-
-    return {
-      daysCount,
-      weeksCount,
-      totalHours: Math.round(visibleTotalHours * 100) / 100,
-      avgWeeklyHours:
-        weeksCount > 0 ? Math.round((visibleTotalHours / weeksCount) * 100) / 100 : 0,
-      topCategory,
-    }
-  }, [dailySummary.days, hiddenLooseKeys, weeklySummary.weeks.length])
-
   const toggleCategoryVisibility = (category: string) => {
     setHiddenCategories((prev) => {
       const next = new Set(prev)
@@ -474,48 +432,6 @@ export function DailyChartPage({
           </button>
         </div>
       )}
-
-      {/* KPI Summary Strip */}
-      <div className="chart-kpi-grid">
-        <div className="chart-kpi-card">
-          <span className="chart-kpi-label">Zakres danych</span>
-          <span className="chart-kpi-value">
-            {kpiStats.daysCount} dni · {kpiStats.weeksCount} tyg.
-          </span>
-        </div>
-        <div className="chart-kpi-card">
-          <span className="chart-kpi-label">Suma godzin</span>
-          <span className="chart-kpi-value">{kpiStats.totalHours.toFixed(2)} h</span>
-        </div>
-        <div className="chart-kpi-card">
-          <span className="chart-kpi-label">Średnio tygodniowo</span>
-          <span className="chart-kpi-value">{kpiStats.avgWeeklyHours.toFixed(2)} h</span>
-        </div>
-        <div className="chart-kpi-card">
-          <span className="chart-kpi-label">Główna kategoria</span>
-          <span className="chart-kpi-value chart-kpi-cat">
-            {kpiStats.topCategory ? (
-              <>
-                <span
-                  className="chart-swatch"
-                  style={{
-                    backgroundColor: getCategoryColor(
-                      kpiStats.topCategory.name,
-                      categoryConfigs,
-                    ),
-                  }}
-                />
-                <span>
-                  {formatCategoryLabel(kpiStats.topCategory.name)} ·{' '}
-                  {kpiStats.topCategory.hours.toFixed(2)} h
-                </span>
-              </>
-            ) : (
-              '—'
-            )}
-          </span>
-        </div>
-      </div>
 
       {/* Global Controls Toolbar */}
       <section className="panel" aria-label="Filtry wykresów">
