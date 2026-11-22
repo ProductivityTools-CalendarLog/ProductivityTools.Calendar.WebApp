@@ -24,7 +24,6 @@ import { StackedCategoryChartCard } from './StackedCategoryChartCard'
 
 type RangePreset = '14d' | '21d' | '30d' | '60d' | '180d' | 'all' | 'custom'
 type SortDirection = 'desc' | 'asc'
-type ChartVisibilityFilter = 'all' | 'daily' | 'weekly' | 'hours' | 'percent'
 
 const DAILY_CHART_MAX_DAYS = 21
 const WEEKLY_CHART_MAX_WEEKS = 26
@@ -113,7 +112,6 @@ export function DailyChartPage({
   const [includeUncategorized, setIncludeUncategorized] = useState<boolean>(true)
   const [fillEmptyDays, setFillEmptyDays] = useState<boolean>(false)
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
-  const [chartFilter, setChartFilter] = useState<ChartVisibilityFilter>('all')
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(() => new Set())
   const [refreshGeneration, setRefreshGeneration] = useState<number>(0)
 
@@ -342,15 +340,6 @@ export function DailyChartPage({
     })
   }
 
-  const showDailyHours =
-    chartFilter === 'all' || chartFilter === 'daily' || chartFilter === 'hours'
-  const showWeeklyHours =
-    chartFilter === 'all' || chartFilter === 'weekly' || chartFilter === 'hours'
-  const showDailyPercent =
-    chartFilter === 'all' || chartFilter === 'daily' || chartFilter === 'percent'
-  const showWeeklyPercent =
-    chartFilter === 'all' || chartFilter === 'weekly' || chartFilter === 'percent'
-
   const hasAnyData = dailySummary.days.length > 0 || weeklySummary.weeks.length > 0
 
   return (
@@ -437,29 +426,6 @@ export function DailyChartPage({
       <section className="panel" aria-label="Filtry wykresów">
         <div className="panel-header chart-controls-bar" style={{ borderBottom: 'none' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-            <div className="filter-bar" role="group" aria-label="Widok wykresów">
-              {(
-                [
-                  { id: 'all', label: 'Wszystkie (4)' },
-                  { id: 'daily', label: 'Dzienne (2)' },
-                  { id: 'weekly', label: 'Tygodniowe (2)' },
-                  { id: 'hours', label: 'Godzinowe (2)' },
-                  { id: 'percent', label: '100% (2)' },
-                ] as const
-              ).map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`filter-pill ${chartFilter === opt.id ? 'active' : ''}`}
-                  onClick={() => setChartFilter(opt.id)}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-
-            <span style={{ color: 'var(--border-strong)' }}>|</span>
-
             <div className="filter-bar" role="group" aria-label="Zakres dat">
               {(
                 [
@@ -586,96 +552,88 @@ export function DailyChartPage({
       ) : (
         <>
           {/* 1. Daily Hours Stacked Bar Chart */}
-          {showDailyHours && (
-            <StackedCategoryChartCard
-              chartId="daily-hours-chart"
-              title="1. Wykres dzienny — Godziny wg kategorii"
-              subtitle="Ostatnie 21 dni (YYYY-MM-DD); kliknij słupek, aby wyświetlić pod wykresem wydarzenia z tego dnia."
-              mode="hours"
-              granularity="day"
-              apiUrl={apiUrl}
-              accountFilter={accountFilter}
-              effectiveFromDay={effectiveDates.fromDay}
-              effectiveToDay={effectiveDates.toDay}
-              includeUncategorized={includeUncategorized}
-              refreshGeneration={refreshGeneration}
-              buckets={dailyBuckets}
-              legendCategoriesTopDown={legendCategoriesTopDown}
-              categoryConfigs={categoryConfigs}
-              hiddenCategories={hiddenCategories}
-              onToggleCategory={toggleCategoryVisibility}
-              onResetHiddenCategories={() => setHiddenCategories(new Set())}
-            />
-          )}
+          <StackedCategoryChartCard
+            chartId="daily-hours-chart"
+            title="1. Wykres dzienny — Godziny wg kategorii"
+            subtitle="Ostatnie 21 dni (YYYY-MM-DD); kliknij słupek, aby wyświetlić pod wykresem wydarzenia z tego dnia."
+            mode="hours"
+            granularity="day"
+            apiUrl={apiUrl}
+            accountFilter={accountFilter}
+            effectiveFromDay={effectiveDates.fromDay}
+            effectiveToDay={effectiveDates.toDay}
+            includeUncategorized={includeUncategorized}
+            refreshGeneration={refreshGeneration}
+            buckets={dailyBuckets}
+            legendCategoriesTopDown={legendCategoriesTopDown}
+            categoryConfigs={categoryConfigs}
+            hiddenCategories={hiddenCategories}
+            onToggleCategory={toggleCategoryVisibility}
+            onResetHiddenCategories={() => setHiddenCategories(new Set())}
+          />
 
           {/* 2. Weekly Hours Stacked Bar Chart */}
-          {showWeeklyHours && (
-            <StackedCategoryChartCard
-              chartId="weekly-hours-chart"
-              title="2. Wykres tygodniowy — Godziny wg kategorii"
-              subtitle="Ostatnie 26 tygodni ISO (RRRRTT, np. 202647); kliknij słupek, aby wyświetlić pod wykresem wydarzenia z tego tygodnia."
-              mode="hours"
-              granularity="week"
-              apiUrl={apiUrl}
-              accountFilter={accountFilter}
-              effectiveFromDay={effectiveDates.fromDay}
-              effectiveToDay={effectiveDates.toDay}
-              includeUncategorized={includeUncategorized}
-              refreshGeneration={refreshGeneration}
-              buckets={weeklyBuckets}
-              legendCategoriesTopDown={legendCategoriesTopDown}
-              categoryConfigs={categoryConfigs}
-              hiddenCategories={hiddenCategories}
-              onToggleCategory={toggleCategoryVisibility}
-              onResetHiddenCategories={() => setHiddenCategories(new Set())}
-            />
-          )}
+          <StackedCategoryChartCard
+            chartId="weekly-hours-chart"
+            title="2. Wykres tygodniowy — Godziny wg kategorii"
+            subtitle="Ostatnie 26 tygodni ISO (RRRRTT, np. 202647); kliknij słupek, aby wyświetlić pod wykresem wydarzenia z tego tygodnia."
+            mode="hours"
+            granularity="week"
+            apiUrl={apiUrl}
+            accountFilter={accountFilter}
+            effectiveFromDay={effectiveDates.fromDay}
+            effectiveToDay={effectiveDates.toDay}
+            includeUncategorized={includeUncategorized}
+            refreshGeneration={refreshGeneration}
+            buckets={weeklyBuckets}
+            legendCategoriesTopDown={legendCategoriesTopDown}
+            categoryConfigs={categoryConfigs}
+            hiddenCategories={hiddenCategories}
+            onToggleCategory={toggleCategoryVisibility}
+            onResetHiddenCategories={() => setHiddenCategories(new Set())}
+          />
 
           {/* 3. Daily 100% Stacked Bar Chart */}
-          {showDailyPercent && (
-            <StackedCategoryChartCard
-              chartId="daily-percent-chart"
-              title="3. Wykres dzienny — Udział procentowy kategorii (100%)"
-              subtitle="Ostatnie 21 dni znormalizowanych do 100% czasu; kliknij słupek, aby wyświetlić pod wykresem wydarzenia i ich udział procentowy."
-              mode="percent"
-              granularity="day"
-              apiUrl={apiUrl}
-              accountFilter={accountFilter}
-              effectiveFromDay={effectiveDates.fromDay}
-              effectiveToDay={effectiveDates.toDay}
-              includeUncategorized={includeUncategorized}
-              refreshGeneration={refreshGeneration}
-              buckets={dailyBuckets}
-              legendCategoriesTopDown={legendCategoriesTopDown}
-              categoryConfigs={categoryConfigs}
-              hiddenCategories={hiddenCategories}
-              onToggleCategory={toggleCategoryVisibility}
-              onResetHiddenCategories={() => setHiddenCategories(new Set())}
-            />
-          )}
+          <StackedCategoryChartCard
+            chartId="daily-percent-chart"
+            title="3. Wykres dzienny — Udział procentowy kategorii (100%)"
+            subtitle="Ostatnie 21 dni znormalizowanych do 100% czasu; kliknij słupek, aby wyświetlić pod wykresem wydarzenia i ich udział procentowy."
+            mode="percent"
+            granularity="day"
+            apiUrl={apiUrl}
+            accountFilter={accountFilter}
+            effectiveFromDay={effectiveDates.fromDay}
+            effectiveToDay={effectiveDates.toDay}
+            includeUncategorized={includeUncategorized}
+            refreshGeneration={refreshGeneration}
+            buckets={dailyBuckets}
+            legendCategoriesTopDown={legendCategoriesTopDown}
+            categoryConfigs={categoryConfigs}
+            hiddenCategories={hiddenCategories}
+            onToggleCategory={toggleCategoryVisibility}
+            onResetHiddenCategories={() => setHiddenCategories(new Set())}
+          />
 
           {/* 4. Weekly 100% Stacked Bar Chart */}
-          {showWeeklyPercent && (
-            <StackedCategoryChartCard
-              chartId="weekly-percent-chart"
-              title="4. Wykres tygodniowy — Udział procentowy kategorii (100%)"
-              subtitle="Ostatnie 26 tygodni ISO (RRRRTT) znormalizowanych do 100% czasu; kliknij słupek, aby wyświetlić pod wykresem wydarzenia z tego tygodnia."
-              mode="percent"
-              granularity="week"
-              apiUrl={apiUrl}
-              accountFilter={accountFilter}
-              effectiveFromDay={effectiveDates.fromDay}
-              effectiveToDay={effectiveDates.toDay}
-              includeUncategorized={includeUncategorized}
-              refreshGeneration={refreshGeneration}
-              buckets={weeklyBuckets}
-              legendCategoriesTopDown={legendCategoriesTopDown}
-              categoryConfigs={categoryConfigs}
-              hiddenCategories={hiddenCategories}
-              onToggleCategory={toggleCategoryVisibility}
-              onResetHiddenCategories={() => setHiddenCategories(new Set())}
-            />
-          )}
+          <StackedCategoryChartCard
+            chartId="weekly-percent-chart"
+            title="4. Wykres tygodniowy — Udział procentowy kategorii (100%)"
+            subtitle="Ostatnie 26 tygodni ISO (RRRRTT) znormalizowanych do 100% czasu; kliknij słupek, aby wyświetlić pod wykresem wydarzenia z tego tygodnia."
+            mode="percent"
+            granularity="week"
+            apiUrl={apiUrl}
+            accountFilter={accountFilter}
+            effectiveFromDay={effectiveDates.fromDay}
+            effectiveToDay={effectiveDates.toDay}
+            includeUncategorized={includeUncategorized}
+            refreshGeneration={refreshGeneration}
+            buckets={weeklyBuckets}
+            legendCategoriesTopDown={legendCategoriesTopDown}
+            categoryConfigs={categoryConfigs}
+            hiddenCategories={hiddenCategories}
+            onToggleCategory={toggleCategoryVisibility}
+            onResetHiddenCategories={() => setHiddenCategories(new Set())}
+          />
         </>
       )}
     </>
