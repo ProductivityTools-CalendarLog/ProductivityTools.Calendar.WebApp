@@ -5,10 +5,16 @@ import { useAuth } from '../auth/useAuth'
 import { SYNC_TRIGGERS } from '../config/apiConfig'
 import type { CalendarItem } from '../types/calendar'
 import type { DataPointMonthlySummary } from '../types/dataPoint'
+import {
+  loadDataPointFilters,
+  saveDataPointFilters,
+  type ChartSortDirection,
+  type DataPointMonthsPreset,
+} from '../utils/filterStorage'
 import { DataPointCategoryChartCard } from './DataPointCategoryChartCard'
 
-type MonthsPreset = '12m' | '24m' | 'all'
-type SortDirection = 'desc' | 'asc'
+type MonthsPreset = DataPointMonthsPreset
+type SortDirection = ChartSortDirection
 
 interface DataPointChartsPageProps {
   apiUrl: string
@@ -25,13 +31,35 @@ export function DataPointChartsPage({
 }: DataPointChartsPageProps) {
   const { getIdToken, signOut } = useAuth()
 
-  const [accountFilter, setAccountFilter] = useState<string>('ALL')
-  const [monthsPreset, setMonthsPreset] = useState<MonthsPreset>('24m')
-  const [fillEmptyMonths, setFillEmptyMonths] = useState<boolean>(true)
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
-  const [selectedCategory, setSelectedCategory] = useState<string>('ALL')
-  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [initialFilters] = useState(() =>
+    loadDataPointFilters({
+      accountFilter: 'ALL',
+      monthsPreset: '24m',
+      fillEmptyMonths: true,
+      sortDirection: 'desc',
+      selectedCategory: 'ALL',
+      searchQuery: '',
+    }),
+  )
+
+  const [accountFilter, setAccountFilter] = useState<string>(initialFilters.accountFilter)
+  const [monthsPreset, setMonthsPreset] = useState<MonthsPreset>(initialFilters.monthsPreset)
+  const [fillEmptyMonths, setFillEmptyMonths] = useState<boolean>(initialFilters.fillEmptyMonths)
+  const [sortDirection, setSortDirection] = useState<SortDirection>(initialFilters.sortDirection)
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialFilters.selectedCategory)
+  const [searchQuery, setSearchQuery] = useState<string>(initialFilters.searchQuery)
   const [refreshGeneration, setRefreshGeneration] = useState<number>(0)
+
+  useEffect(() => {
+    saveDataPointFilters({
+      accountFilter,
+      monthsPreset,
+      fillEmptyMonths,
+      sortDirection,
+      selectedCategory,
+      searchQuery,
+    })
+  }, [accountFilter, fillEmptyMonths, monthsPreset, searchQuery, selectedCategory, sortDirection])
 
   const [summary, setSummary] = useState<DataPointMonthlySummary>({
     dataPointCalendars: [],
@@ -105,8 +133,9 @@ export function DataPointChartsPage({
     const set = new Set<string>()
     if (signedInEmail) set.add(signedInEmail)
     for (const c of calendars) set.add(c.account)
+    if (accountFilter !== 'ALL' && accountFilter.trim() !== '') set.add(accountFilter)
     return Array.from(set).sort()
-  }, [calendars, signedInEmail])
+  }, [accountFilter, calendars, signedInEmail])
 
   const effectiveSelectedCategory = useMemo(() => {
     if (selectedCategory === 'ALL') return 'ALL'

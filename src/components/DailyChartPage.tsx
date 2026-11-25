@@ -20,10 +20,16 @@ import {
   toIsoDateString,
   type ChartBucketInput,
 } from '../utils/chartCategories'
+import {
+  loadDataLogFilters,
+  saveDataLogFilters,
+  type ChartSortDirection,
+  type DataLogRangePreset,
+} from '../utils/filterStorage'
 import { StackedCategoryChartCard } from './StackedCategoryChartCard'
 
-type RangePreset = '14d' | '21d' | '30d' | '60d' | '180d' | 'all' | 'custom'
-type SortDirection = 'desc' | 'asc'
+type RangePreset = DataLogRangePreset
+type SortDirection = ChartSortDirection
 
 const DAILY_CHART_MAX_DAYS = 21
 const WEEKLY_CHART_MAX_WEEKS = 26
@@ -103,17 +109,55 @@ export function DailyChartPage({
 }: DailyChartPageProps) {
   const { getIdToken, signOut } = useAuth()
 
-  const [accountFilter, setAccountFilter] = useState<string>('ALL')
-  const [rangePreset, setRangePreset] = useState<RangePreset>('all')
-  const [customFrom, setCustomFrom] = useState<string>(
-    () => computePresetDates('30d').fromDay,
+  const [initialFilters] = useState(() => {
+    const defaultCustom = computePresetDates('30d')
+    return loadDataLogFilters({
+      accountFilter: 'ALL',
+      rangePreset: 'all',
+      customFrom: defaultCustom.fromDay,
+      customTo: defaultCustom.toDay,
+      includeUncategorized: true,
+      fillEmptyDays: false,
+      sortDirection: 'desc',
+      hiddenCategories: [],
+    })
+  })
+
+  const [accountFilter, setAccountFilter] = useState<string>(initialFilters.accountFilter)
+  const [rangePreset, setRangePreset] = useState<RangePreset>(initialFilters.rangePreset)
+  const [customFrom, setCustomFrom] = useState<string>(initialFilters.customFrom)
+  const [customTo, setCustomTo] = useState<string>(initialFilters.customTo)
+  const [includeUncategorized, setIncludeUncategorized] = useState<boolean>(
+    initialFilters.includeUncategorized,
   )
-  const [customTo, setCustomTo] = useState<string>(() => computePresetDates('30d').toDay)
-  const [includeUncategorized, setIncludeUncategorized] = useState<boolean>(true)
-  const [fillEmptyDays, setFillEmptyDays] = useState<boolean>(false)
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
-  const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(() => new Set())
+  const [fillEmptyDays, setFillEmptyDays] = useState<boolean>(initialFilters.fillEmptyDays)
+  const [sortDirection, setSortDirection] = useState<SortDirection>(initialFilters.sortDirection)
+  const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(
+    () => new Set(initialFilters.hiddenCategories),
+  )
   const [refreshGeneration, setRefreshGeneration] = useState<number>(0)
+
+  useEffect(() => {
+    saveDataLogFilters({
+      accountFilter,
+      rangePreset,
+      customFrom,
+      customTo,
+      includeUncategorized,
+      fillEmptyDays,
+      sortDirection,
+      hiddenCategories: Array.from(hiddenCategories),
+    })
+  }, [
+    accountFilter,
+    customFrom,
+    customTo,
+    fillEmptyDays,
+    hiddenCategories,
+    includeUncategorized,
+    rangePreset,
+    sortDirection,
+  ])
 
   const [dailySummary, setDailySummary] = useState<DailyCategorySummary>({
     categories: [],
@@ -262,8 +306,9 @@ export function DailyChartPage({
     const set = new Set<string>()
     if (signedInEmail) set.add(signedInEmail)
     for (const c of calendars) set.add(c.account)
+    if (accountFilter !== 'ALL' && accountFilter.trim() !== '') set.add(accountFilter)
     return Array.from(set).sort()
-  }, [calendars, signedInEmail])
+  }, [accountFilter, calendars, signedInEmail])
 
   const categoryConfigs = useMemo(
     () => dailySummary.categoryConfigs ?? weeklySummary.categoryConfigs ?? [],
