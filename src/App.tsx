@@ -9,6 +9,7 @@ import {
   setCalendarType,
   updateCalendar,
 } from './api/calendarsApi'
+import { reprocessCalendarLogs } from './api/categoryRulesApi'
 import { useAuth } from './auth/useAuth'
 import { AddCalendarForm } from './components/AddCalendarForm'
 import { CalendarList } from './components/CalendarList'
@@ -20,7 +21,7 @@ import { MutationsPage } from './components/MutationsPage'
 import { RawEventsPage } from './components/RawEventsPage'
 import { TechnicalBar } from './components/TechnicalBar'
 import { TopBar, type AppPage } from './components/TopBar'
-import { getApiBaseUrl, setApiBaseUrl, SYNC_TRIGGERS } from './config/apiConfig'
+import { getApiBaseUrl, setApiBaseUrl } from './config/apiConfig'
 import type {
   CalendarItem,
   CalendarType,
@@ -49,6 +50,9 @@ export function App() {
   const [loadingCalendars, setLoadingCalendars] = useState<boolean>(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [globalError, setGlobalError] = useState<string | null>(null)
+  const [reprocessing, setReprocessing] = useState<boolean>(false)
+  const [globalRefreshVersion, setGlobalRefreshVersion] = useState<number>(0)
 
   useEffect(() => {
     const onPopState = () => {
@@ -158,7 +162,28 @@ export function App() {
     setToast(msg)
     window.setTimeout(() => {
       setToast((current) => (current === msg ? null : current))
-    }, 3200)
+    }, 4000)
+  }
+
+  const handleReprocessCalendarLogs = async () => {
+    setReprocessing(true)
+    setGlobalError(null)
+    try {
+      const token = await getIdToken()
+      const res = await reprocessCalendarLogs(apiUrl, token)
+      setGlobalRefreshVersion((prev) => prev + 1)
+      showToast(
+        `Przeliczono ${res.rawEventsEvaluated} eventów → zapisano ${res.logsUpserted} pozycji w CalendarLog.`,
+      )
+    } catch (err: unknown) {
+      if (err instanceof ApiError && err.status === 401) {
+        await signOut()
+        return
+      }
+      setGlobalError((err as Error)?.message || 'Nie udało się przeliczyć reguł CalendarLog.')
+    } finally {
+      setReprocessing(false)
+    }
   }
 
   const handleSignOut = async () => {
@@ -233,16 +258,37 @@ export function App() {
         <TopBar
           activePage={activePage}
           onNavigate={handleNavigate}
+          reprocessing={reprocessing}
+          onReprocess={() => void handleReprocessCalendarLogs()}
           onSignOut={() => void handleSignOut()}
         />
       </div>
 
       <main className="main-container">
+        {toast && (
+          <div className="alert alert-success" role="status">
+            <span>{toast}</span>
+            <button type="button" className="btn btn-ghost" onClick={() => setToast(null)}>
+              Zamknij
+            </button>
+          </div>
+        )}
+
+        {globalError && (
+          <div className="alert alert-error" role="alert">
+            <span>{globalError}</span>
+            <button type="button" className="btn btn-ghost" onClick={() => setGlobalError(null)}>
+              Zamknij
+            </button>
+          </div>
+        )}
+
         {activePage === 'charts' ? (
           <DailyChartPage
             apiUrl={apiUrl}
             calendars={calendars}
             signedInEmail={user.email}
+            globalRefreshVersion={globalRefreshVersion}
             onNavigateToCategories={() => handleNavigate('categories')}
           />
         ) : activePage === 'datapoints' ? (
@@ -250,6 +296,7 @@ export function App() {
             apiUrl={apiUrl}
             calendars={calendars}
             signedInEmail={user.email}
+            globalRefreshVersion={globalRefreshVersion}
             onNavigateToCalendars={() => handleNavigate('calendars')}
           />
         ) : activePage === 'events' ? (
@@ -277,30 +324,7 @@ export function App() {
                   <code>GET /api/sync/plan</code>.
                 </p>
               </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                {SYNC_TRIGGERS.map((trigger) => (
-                  <a
-                    key={trigger.account}
-                    id={`calendars-trigger-sync-${trigger.account}`}
-                    href={trigger.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-secondary"
-                    style={{ textDecoration: 'none' }}
-                    title={`Uruchamia Apps Script doGet() dla ${trigger.account} w nowej karcie`}
-                  >
-                    Importuj {trigger.account} ↗
-                  </a>
-                ))}
-              </div>
             </div>
-
-            {toast && (
-              <div className="alert alert-success" role="status">
-                <span>{toast}</span>
-              </div>
-            )}
 
             {loadError && (
               <div className="alert alert-error" role="alert">

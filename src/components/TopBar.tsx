@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { SYNC_TRIGGERS } from '../config/apiConfig'
 
 export type AppPage =
   | 'charts'
@@ -11,6 +12,8 @@ export type AppPage =
 interface TopBarProps {
   activePage: AppPage
   onNavigate: (page: AppPage) => void
+  reprocessing: boolean
+  onReprocess: () => void
   onSignOut: () => void
 }
 
@@ -48,25 +51,35 @@ const CONFIG_ITEMS: readonly NavItem[] = [
   },
 ]
 
-export function TopBar({ activePage, onNavigate, onSignOut }: TopBarProps) {
-  const [configOpen, setConfigOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement | null>(null)
+export function TopBar({
+  activePage,
+  onNavigate,
+  reprocessing,
+  onReprocess,
+  onSignOut,
+}: TopBarProps) {
+  const [openMenu, setOpenMenu] = useState<'actions' | 'config' | null>(null)
+  const actionsRef = useRef<HTMLDivElement | null>(null)
+  const configRef = useRef<HTMLDivElement | null>(null)
 
   const activeConfigItem = CONFIG_ITEMS.find((item) => item.id === activePage) ?? null
   const isConfigActive = activeConfigItem !== null
 
   useEffect(() => {
-    if (!configOpen) return
+    if (!openMenu) return
 
     const handleMouseDown = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setConfigOpen(false)
+      const target = e.target as Node
+      const insideActions = actionsRef.current?.contains(target) ?? false
+      const insideConfig = configRef.current?.contains(target) ?? false
+      if (!insideActions && !insideConfig) {
+        setOpenMenu(null)
       }
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setConfigOpen(false)
+        setOpenMenu(null)
       }
     }
 
@@ -76,10 +89,10 @@ export function TopBar({ activePage, onNavigate, onSignOut }: TopBarProps) {
       document.removeEventListener('mousedown', handleMouseDown)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [configOpen])
+  }, [openMenu])
 
   const handleSelectPage = (page: AppPage) => {
-    setConfigOpen(false)
+    setOpenMenu(null)
     onNavigate(page)
   }
 
@@ -115,14 +128,106 @@ export function TopBar({ activePage, onNavigate, onSignOut }: TopBarProps) {
         </div>
 
         <div className="topbar-right">
-          <div className="config-menu" ref={menuRef}>
+          {/* Global Actions Dropdown */}
+          <div className="config-menu" ref={actionsRef}>
+            <button
+              id="nav-actions-dropdown-button"
+              type="button"
+              className={`actions-trigger ${reprocessing ? 'busy' : ''}`}
+              aria-haspopup="menu"
+              aria-expanded={openMenu === 'actions'}
+              onClick={() =>
+                setOpenMenu((prev) => (prev === 'actions' ? null : 'actions'))
+              }
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden="true"
+              >
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinejoin="round" />
+              </svg>
+              <span>{reprocessing ? 'Przeliczanie…' : 'Akcje'}</span>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                className={`config-chevron ${openMenu === 'actions' ? 'open' : ''}`}
+                aria-hidden="true"
+              >
+                <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+
+            {openMenu === 'actions' && (
+              <div className="config-dropdown" role="menu" aria-label="Akcje">
+                <div className="config-dropdown-header">Synchronizacja i dane</div>
+                {SYNC_TRIGGERS.map((trigger) => (
+                  <a
+                    key={trigger.account}
+                    id={`actions-trigger-sync-${trigger.account}`}
+                    href={trigger.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    role="menuitem"
+                    className="config-dropdown-item config-dropdown-link"
+                    onClick={() => setOpenMenu(null)}
+                  >
+                    <div className="config-dropdown-item-row">
+                      <span className="config-dropdown-item-title">
+                        Importuj {trigger.account}
+                      </span>
+                      <span className="config-external-arrow" aria-hidden="true">
+                        ↗
+                      </span>
+                    </div>
+                    <span className="config-dropdown-item-desc">
+                      Uruchamia Apps Script doGet() w nowej karcie
+                    </span>
+                  </a>
+                ))}
+                <button
+                  id="actions-reprocess-btn"
+                  type="button"
+                  role="menuitem"
+                  className="config-dropdown-item"
+                  disabled={reprocessing}
+                  onClick={() => {
+                    setOpenMenu(null)
+                    onReprocess()
+                  }}
+                >
+                  <div className="config-dropdown-item-row">
+                    <span className="config-dropdown-item-title">
+                      {reprocessing ? 'Przeliczanie reguł…' : 'Przelicz reguły (CalendarLog)'}
+                    </span>
+                  </div>
+                  <span className="config-dropdown-item-desc">
+                    Przelicza kategorie z pobranych eventów i odświeża wykresy
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Configuration Dropdown */}
+          <div className="config-menu" ref={configRef}>
             <button
               id="nav-config-dropdown-button"
               type="button"
               className={`config-trigger ${isConfigActive ? 'active' : ''}`}
               aria-haspopup="menu"
-              aria-expanded={configOpen}
-              onClick={() => setConfigOpen((prev) => !prev)}
+              aria-expanded={openMenu === 'config'}
+              onClick={() =>
+                setOpenMenu((prev) => (prev === 'config' ? null : 'config'))
+              }
             >
               <svg
                 width="14"
@@ -146,14 +251,14 @@ export function TopBar({ activePage, onNavigate, onSignOut }: TopBarProps) {
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2.2"
-                className={`config-chevron ${configOpen ? 'open' : ''}`}
+                className={`config-chevron ${openMenu === 'config' ? 'open' : ''}`}
                 aria-hidden="true"
               >
                 <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
 
-            {configOpen && (
+            {openMenu === 'config' && (
               <div className="config-dropdown" role="menu" aria-label="Konfiguracja">
                 <div className="config-dropdown-header">Konfiguracja</div>
                 {CONFIG_ITEMS.map((item) => {

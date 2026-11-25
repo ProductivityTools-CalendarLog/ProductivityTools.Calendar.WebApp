@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError } from '../api/calendarsApi'
 import { fetchDataPointMonthlySummary } from '../api/dataPointsApi'
 import { useAuth } from '../auth/useAuth'
-import { SYNC_TRIGGERS } from '../config/apiConfig'
 import type { CalendarItem } from '../types/calendar'
 import type { DataPointMonthlySummary } from '../types/dataPoint'
 import {
@@ -20,6 +19,7 @@ interface DataPointChartsPageProps {
   apiUrl: string
   calendars: CalendarItem[]
   signedInEmail: string | null
+  globalRefreshVersion?: number
   onNavigateToCalendars: () => void
 }
 
@@ -27,6 +27,7 @@ export function DataPointChartsPage({
   apiUrl,
   calendars,
   signedInEmail,
+  globalRefreshVersion = 0,
   onNavigateToCalendars,
 }: DataPointChartsPageProps) {
   const { getIdToken, signOut } = useAuth()
@@ -118,11 +119,12 @@ export function DataPointChartsPage({
         }
       }
     }
+    if (globalRefreshVersion < 0) return
     void run()
     return () => {
       cancelled = true
     }
-  }, [accountFilter, apiUrl, getIdToken, signOut])
+  }, [accountFilter, apiUrl, getIdToken, globalRefreshVersion, signOut])
 
   const dataPointCalendarsConfigured = useMemo(
     () => calendars.filter((c) => c.type === 'DataPoint'),
@@ -159,48 +161,10 @@ export function DataPointChartsPage({
   const maxMonths =
     monthsPreset === '12m' ? 12 : monthsPreset === '24m' ? 24 : 240
 
+  const combinedRefreshGeneration = refreshGeneration + globalRefreshVersion
+
   return (
     <>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          gap: '0.6rem',
-          flexWrap: 'wrap',
-        }}
-      >
-        {SYNC_TRIGGERS.map((trigger) => (
-          <a
-            key={trigger.account}
-            href={trigger.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-secondary btn-sm"
-            style={{ textDecoration: 'none' }}
-            title={`Uruchamia Apps Script doGet() dla ${trigger.account} w nowej karcie`}
-          >
-            Importuj {trigger.account} ↗
-          </a>
-        ))}
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
-          onClick={onNavigateToCalendars}
-        >
-          Kalendarze ({dataPointCalendarsConfigured.length} DataPoint)
-        </button>
-        <button
-          id="datapoints-refresh-btn"
-          type="button"
-          className="btn btn-primary btn-sm"
-          disabled={loading}
-          onClick={() => void loadSummary()}
-        >
-          {loading ? 'Odświeżanie…' : 'Odśwież wykresy'}
-        </button>
-      </div>
-
       {error && (
         <div className="alert alert-error" role="alert">
           <span>{error}</span>
@@ -291,6 +255,33 @@ export function DataPointChartsPage({
               </span>
               <span className="switch-label">Puste miesiące</span>
             </label>
+
+            <button
+              id="datapoints-refresh-btn"
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={loading}
+              onClick={() => void loadSummary()}
+              title="Odśwież wykresy DataPoint"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.1"
+                className={loading ? 'techbar-spin' : undefined}
+                aria-hidden="true"
+              >
+                <path
+                  d="M20 11a8.1 8.1 0 0 0-15.5-2m-.5-4v4h4M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span>{loading ? 'Odświeżanie…' : 'Odśwież'}</span>
+            </button>
           </div>
         </div>
 
@@ -374,7 +365,7 @@ export function DataPointChartsPage({
             fillEmptyMonths={fillEmptyMonths}
             maxMonths={maxMonths}
             sortDirection={sortDirection}
-            refreshGeneration={refreshGeneration}
+            refreshGeneration={combinedRefreshGeneration}
           />
         ))
       )}

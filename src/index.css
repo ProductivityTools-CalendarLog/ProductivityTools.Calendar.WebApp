@@ -464,9 +464,43 @@ select {
   box-shadow: var(--shadow-xs);
 }
 
-/* Config Dropdown Menu & Subbar (Option A) */
+/* Config & Actions Dropdown Menus + Subbar (Option A + Option 1) */
 .config-menu {
   position: relative;
+}
+
+.actions-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 34px;
+  padding: 0 0.75rem;
+  border-radius: var(--radius-md);
+  border: 1px solid hsla(219, 79%, 46%, 0.35);
+  background-color: var(--bg-surface);
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.actions-trigger:hover {
+  background-color: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.actions-trigger.busy {
+  opacity: 0.72;
+}
+
+.config-dropdown-link {
+  text-decoration: none;
+}
+
+.config-external-arrow {
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
 .config-trigger {

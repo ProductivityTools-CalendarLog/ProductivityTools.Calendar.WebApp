@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError } from '../api/calendarsApi'
-import {
-  fetchDailySummary,
-  fetchWeeklySummary,
-  reprocessCalendarLogs,
-} from '../api/categoryRulesApi'
+import { fetchDailySummary, fetchWeeklySummary } from '../api/categoryRulesApi'
 import { useAuth } from '../auth/useAuth'
-import { SYNC_TRIGGERS } from '../config/apiConfig'
 import type { CalendarItem } from '../types/calendar'
 import type {
   DailyCategoryBucket,
@@ -98,6 +93,7 @@ interface DailyChartPageProps {
   apiUrl: string
   calendars: CalendarItem[]
   signedInEmail: string | null
+  globalRefreshVersion?: number
   onNavigateToCategories?: () => void
 }
 
@@ -105,6 +101,7 @@ export function DailyChartPage({
   apiUrl,
   calendars,
   signedInEmail,
+  globalRefreshVersion = 0,
   onNavigateToCategories,
 }: DailyChartPageProps) {
   const { getIdToken, signOut } = useAuth()
@@ -168,9 +165,7 @@ export function DailyChartPage({
     weeks: [],
   })
   const [loading, setLoading] = useState<boolean>(true)
-  const [reprocessing, setReprocessing] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
 
   const effectiveDates = useMemo((): { fromDay?: string; toDay?: string } => {
     if (rangePreset === 'all') {
@@ -266,6 +261,7 @@ export function DailyChartPage({
         }
       }
     }
+    if (globalRefreshVersion < 0) return
     void run()
     return () => {
       cancelled = true
@@ -276,31 +272,10 @@ export function DailyChartPage({
     effectiveDates.fromDay,
     effectiveDates.toDay,
     getIdToken,
+    globalRefreshVersion,
     includeUncategorized,
     signOut,
   ])
-
-  const handleReprocessAndRefresh = async () => {
-    setReprocessing(true)
-    setError(null)
-    setNotice(null)
-    try {
-      const token = await getIdToken()
-      const res = await reprocessCalendarLogs(
-        apiUrl,
-        token,
-        accountFilter === 'ALL' ? undefined : accountFilter,
-      )
-      await loadSummaries()
-      setNotice(
-        `Przeliczono ${res.rawEventsEvaluated} eventów → zapisano ${res.logsUpserted} pozycji w CalendarLog.`,
-      )
-    } catch (err: unknown) {
-      setError((err as Error)?.message || 'Nie udało się przeliczyć logów.')
-    } finally {
-      setReprocessing(false)
-    }
-  }
 
   const knownAccounts = useMemo(() => {
     const set = new Set<string>()
@@ -387,70 +362,10 @@ export function DailyChartPage({
 
   const hasAnyData = dailySummary.days.length > 0 || weeklySummary.weeks.length > 0
 
+  const combinedRefreshGeneration = refreshGeneration + globalRefreshVersion
+
   return (
     <>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          gap: '0.6rem',
-          flexWrap: 'wrap',
-        }}
-      >
-        {SYNC_TRIGGERS.map((trigger) => (
-          <a
-            key={trigger.account}
-            id={`charts-trigger-sync-${trigger.account}`}
-            href={trigger.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-secondary btn-sm"
-            style={{ textDecoration: 'none' }}
-            title={`Uruchamia Apps Script doGet() dla ${trigger.account} w nowej karcie`}
-          >
-            Importuj {trigger.account} ↗
-          </a>
-        ))}
-        {onNavigateToCategories && (
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={onNavigateToCategories}
-            title="Edytuj kolejność sortowania kategorii i kolory na wykresach"
-          >
-            Kolejność sortowania
-          </button>
-        )}
-        <button
-          id="charts-reprocess-btn"
-          type="button"
-          className="btn btn-secondary btn-sm"
-          disabled={reprocessing}
-          onClick={() => void handleReprocessAndRefresh()}
-        >
-          {reprocessing ? 'Przeliczanie…' : 'Przelicz reguły'}
-        </button>
-        <button
-          id="charts-refresh-btn"
-          type="button"
-          className="btn btn-primary btn-sm"
-          disabled={loading}
-          onClick={() => void loadSummaries()}
-        >
-          {loading ? 'Odświeżanie…' : 'Odśwież wykresy'}
-        </button>
-      </div>
-
-      {notice && (
-        <div className="alert alert-success" role="status">
-          <span>{notice}</span>
-          <button type="button" className="btn btn-ghost" onClick={() => setNotice(null)}>
-            Zamknij
-          </button>
-        </div>
-      )}
-
       {error && (
         <div className="alert alert-error" role="alert">
           <span>{error}</span>
@@ -564,6 +479,33 @@ export function DailyChartPage({
               </span>
               <span className="switch-label">Puste dni</span>
             </label>
+
+            <button
+              id="charts-refresh-btn"
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={loading}
+              onClick={() => void loadSummaries()}
+              title="Odśwież wykresy"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.1"
+                className={loading ? 'techbar-spin' : undefined}
+                aria-hidden="true"
+              >
+                <path
+                  d="M20 11a8.1 8.1 0 0 0-15.5-2m-.5-4v4h4M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span>{loading ? 'Odświeżanie…' : 'Odśwież'}</span>
+            </button>
           </div>
         </div>
       </section>
@@ -605,7 +547,7 @@ export function DailyChartPage({
             effectiveFromDay={effectiveDates.fromDay}
             effectiveToDay={effectiveDates.toDay}
             includeUncategorized={includeUncategorized}
-            refreshGeneration={refreshGeneration}
+            refreshGeneration={combinedRefreshGeneration}
             buckets={dailyBuckets}
             legendCategoriesTopDown={legendCategoriesTopDown}
             categoryConfigs={categoryConfigs}
@@ -626,7 +568,7 @@ export function DailyChartPage({
             effectiveFromDay={effectiveDates.fromDay}
             effectiveToDay={effectiveDates.toDay}
             includeUncategorized={includeUncategorized}
-            refreshGeneration={refreshGeneration}
+            refreshGeneration={combinedRefreshGeneration}
             buckets={weeklyBuckets}
             legendCategoriesTopDown={legendCategoriesTopDown}
             categoryConfigs={categoryConfigs}
@@ -647,7 +589,7 @@ export function DailyChartPage({
             effectiveFromDay={effectiveDates.fromDay}
             effectiveToDay={effectiveDates.toDay}
             includeUncategorized={includeUncategorized}
-            refreshGeneration={refreshGeneration}
+            refreshGeneration={combinedRefreshGeneration}
             buckets={dailyBuckets}
             legendCategoriesTopDown={legendCategoriesTopDown}
             categoryConfigs={categoryConfigs}
@@ -668,7 +610,7 @@ export function DailyChartPage({
             effectiveFromDay={effectiveDates.fromDay}
             effectiveToDay={effectiveDates.toDay}
             includeUncategorized={includeUncategorized}
-            refreshGeneration={refreshGeneration}
+            refreshGeneration={combinedRefreshGeneration}
             buckets={weeklyBuckets}
             legendCategoriesTopDown={legendCategoriesTopDown}
             categoryConfigs={categoryConfigs}
