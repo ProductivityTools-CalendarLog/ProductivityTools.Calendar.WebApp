@@ -106,9 +106,12 @@ export function TopBar({
             onClick={() => handleSelectPage('charts')}
             title="Przejdź do Wykresy DataLog"
           >
-            <span className="brand-mark" aria-hidden="true">
-              CL
-            </span>
+            <img
+              src="/pt-calendar-icon.png"
+              alt=""
+              aria-hidden="true"
+              className="brand-icon"
+            />
             <span className="brand-title">PT Calendar</span>
           </button>
 

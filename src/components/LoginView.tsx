@@ -25,9 +25,12 @@ export function LoginView() {
     <main className="login-screen">
       <section className="login-card" aria-labelledby="login-heading">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            CL
-          </span>
+          <img
+            src="/pt-calendar-icon.png"
+            alt=""
+            aria-hidden="true"
+            className="brand-icon"
+          />
           <span className="brand-title">PT Calendar</span>
         </div>
 
