@@ -417,6 +417,14 @@ select {
   gap: 0.65rem;
 }
 
+.brand-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
 .topbar-left {
   display: flex;
   align-items: center;
@@ -453,6 +461,189 @@ select {
 .topnav-link.active {
   background-color: var(--bg-surface);
   color: var(--text-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+/* Config Dropdown Menu & Subbar (Option A) */
+.config-menu {
+  position: relative;
+}
+
+.config-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 34px;
+  padding: 0 0.75rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.config-trigger:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.config-trigger.active {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  box-shadow: var(--shadow-xs);
+}
+
+.config-trigger.active:hover {
+  background-color: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #ffffff;
+}
+
+.config-chevron {
+  transition: transform 140ms ease;
+}
+
+.config-chevron.open {
+  transform: rotate(180deg);
+}
+
+.config-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  width: 264px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.config-dropdown-header {
+  padding: 0.35rem 0.6rem 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 0.15rem;
+}
+
+.config-dropdown-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-radius: 7px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  transition: background-color 120ms ease;
+}
+
+.config-dropdown-item:hover {
+  background-color: var(--bg-subtle);
+}
+
+.config-dropdown-item.active {
+  background-color: var(--accent-soft);
+}
+
+.config-dropdown-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.config-dropdown-item-title {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.config-dropdown-item.active .config-dropdown-item-title {
+  color: var(--accent);
+}
+
+.config-dropdown-item-desc {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.config-active-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.config-subbar {
+  background-color: var(--bg-subtle);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.config-subbar-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0.4rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.config-subbar-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.config-subnav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.config-subnav-link {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.25rem 0.7rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.config-subnav-link:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.config-subnav-link.active {
+  background-color: var(--bg-surface);
+  border-color: var(--border-subtle);
+  color: var(--accent);
+  font-weight: 600;
   box-shadow: var(--shadow-xs);
 }
 
@@ -1555,5 +1746,9 @@ select {
 
   .topbar-inner {
     padding: 0.7rem 1rem;
+  }
+
+  .config-subbar-inner {
+    padding: 0.4rem 1rem;
   }
 }
