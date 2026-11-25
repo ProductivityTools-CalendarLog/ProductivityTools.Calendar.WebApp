@@ -389,60 +389,57 @@ export function DailyChartPage({
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Wykresy DataLog — czas i kategorie</h1>
-          <p className="page-description">
-            Zestawienie dzienne oraz tygodniowe (ISO <code>YYYYWW</code>) w godzinach i
-            w ujęciu 100% dla kalendarzy typu <code>DataLog</code>. Kliknij dowolny słupek,
-            aby rozwinąć tabelę wydarzeń bezpośrednio pod danym wykresem.
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-          {SYNC_TRIGGERS.map((trigger) => (
-            <a
-              key={trigger.account}
-              id={`charts-trigger-sync-${trigger.account}`}
-              href={trigger.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-secondary btn-sm"
-              style={{ textDecoration: 'none' }}
-              title={`Uruchamia Apps Script doGet() dla ${trigger.account} w nowej karcie`}
-            >
-              Importuj {trigger.account} ↗
-            </a>
-          ))}
-          {onNavigateToCategories && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={onNavigateToCategories}
-              title="Edytuj kolejność sortowania kategorii i kolory na wykresach"
-            >
-              Kolejność sortowania
-            </button>
-          )}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: '0.6rem',
+          flexWrap: 'wrap',
+        }}
+      >
+        {SYNC_TRIGGERS.map((trigger) => (
+          <a
+            key={trigger.account}
+            id={`charts-trigger-sync-${trigger.account}`}
+            href={trigger.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-secondary btn-sm"
+            style={{ textDecoration: 'none' }}
+            title={`Uruchamia Apps Script doGet() dla ${trigger.account} w nowej karcie`}
+          >
+            Importuj {trigger.account} ↗
+          </a>
+        ))}
+        {onNavigateToCategories && (
           <button
-            id="charts-reprocess-btn"
             type="button"
             className="btn btn-secondary btn-sm"
-            disabled={reprocessing}
-            onClick={() => void handleReprocessAndRefresh()}
+            onClick={onNavigateToCategories}
+            title="Edytuj kolejność sortowania kategorii i kolory na wykresach"
           >
-            {reprocessing ? 'Przeliczanie…' : 'Przelicz reguły'}
+            Kolejność sortowania
           </button>
-          <button
-            id="charts-refresh-btn"
-            type="button"
-            className="btn btn-primary btn-sm"
-            disabled={loading}
-            onClick={() => void loadSummaries()}
-          >
-            {loading ? 'Odświeżanie…' : 'Odśwież wykresy'}
-          </button>
-        </div>
+        )}
+        <button
+          id="charts-reprocess-btn"
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={reprocessing}
+          onClick={() => void handleReprocessAndRefresh()}
+        >
+          {reprocessing ? 'Przeliczanie…' : 'Przelicz reguły'}
+        </button>
+        <button
+          id="charts-refresh-btn"
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={loading}
+          onClick={() => void loadSummaries()}
+        >
+          {loading ? 'Odświeżanie…' : 'Odśwież wykresy'}
+        </button>
       </div>
 
       {notice && (

@@ -161,47 +161,44 @@ export function DataPointChartsPage({
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Wykresy DataPoint — miesięczna liczba wystąpień</h1>
-          <p className="page-description">
-            Dla każdej kategorii z kalendarzy typu <code>DataPoint</code> prezentowany jest
-            osobny wykres słupkowy z sumą wystąpień (Count) w każdym miesiącu i podziałem na
-            wartości (<code>Kategoria:Wartość</code>).
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-          {SYNC_TRIGGERS.map((trigger) => (
-            <a
-              key={trigger.account}
-              href={trigger.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-secondary btn-sm"
-              style={{ textDecoration: 'none' }}
-              title={`Uruchamia Apps Script doGet() dla ${trigger.account} w nowej karcie`}
-            >
-              Importuj {trigger.account} ↗
-            </a>
-          ))}
-          <button
-            type="button"
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: '0.6rem',
+          flexWrap: 'wrap',
+        }}
+      >
+        {SYNC_TRIGGERS.map((trigger) => (
+          <a
+            key={trigger.account}
+            href={trigger.url}
+            target="_blank"
+            rel="noopener noreferrer"
             className="btn btn-secondary btn-sm"
-            onClick={onNavigateToCalendars}
+            style={{ textDecoration: 'none' }}
+            title={`Uruchamia Apps Script doGet() dla ${trigger.account} w nowej karcie`}
           >
-            Kalendarze ({dataPointCalendarsConfigured.length} DataPoint)
-          </button>
-          <button
-            id="datapoints-refresh-btn"
-            type="button"
-            className="btn btn-primary btn-sm"
-            disabled={loading}
-            onClick={() => void loadSummary()}
-          >
-            {loading ? 'Odświeżanie…' : 'Odśwież wykresy'}
-          </button>
-        </div>
+            Importuj {trigger.account} ↗
+          </a>
+        ))}
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={onNavigateToCalendars}
+        >
+          Kalendarze ({dataPointCalendarsConfigured.length} DataPoint)
+        </button>
+        <button
+          id="datapoints-refresh-btn"
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={loading}
+          onClick={() => void loadSummary()}
+        >
+          {loading ? 'Odświeżanie…' : 'Odśwież wykresy'}
+        </button>
       </div>
 
       {error && (
